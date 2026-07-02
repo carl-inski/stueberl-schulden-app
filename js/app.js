@@ -13,20 +13,25 @@ if (!window.supabase) {
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const TAGS = ["Qualium", "Alumni", "Extern"];
+
 const eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const timeFmt = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 const dateFmt = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+const shortDateFmt = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
 // ---------- Zustand ----------
 
 const state = {
-  users: [],           // [{id, name, category, created_at}]
-  transactions: [],    // [{id, user_id, amount, description, created_at, events: {name, entered_by_user_id} | null}]
-  view: "overview",    // "overview" | "entry" | "log"
-  mode: "add",         // "add" | "pay"
-  selection: new Map(), // Event-Eintrag: personId -> Betrag (Auswahlreihenfolge bleibt erhalten)
+  users: [],            // [{id, name, category, created_at}]
+  transactions: [],     // [{id, user_id, amount, description, created_at, event_id, events: {...} | null}]
+  view: "overview",     // "overview" | "entry" | "persons" | "log"
+  mode: "add",          // "add" | "pay"
+  selection: new Map(), // Event-Eintrag: personId -> Betrag
   payPersonId: null,
   witnessId: null,
+  newPersonTag: "Qualium",
+  sheet: null,          // { type: "detail" | "edit", userId, draftTag? } | null
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -35,7 +40,7 @@ const $ = (sel) => document.querySelector(sel);
 
 async function loadData() {
   const [usersRes, txRes] = await Promise.all([
-    db.from("users").select("*").order("name"),
+    db.from("users").select("*"),
     db.from("transactions")
       .select("*, events(name, entered_by_user_id)")
       .order("created_at", { ascending: false }),
@@ -43,13 +48,17 @@ async function loadData() {
   if (usersRes.error || txRes.error) {
     throw usersRes.error || txRes.error;
   }
-  state.users = usersRes.data;
+  state.users = usersRes.data.sort((a, b) => a.name.localeCompare(b.name, "de"));
   state.transactions = txRes.data;
   renderAll();
 }
 
+function getUser(id) {
+  return state.users.find((u) => u.id === id) || null;
+}
+
 function userName(id) {
-  const u = state.users.find((u) => u.id === id);
+  const u = getUser(id);
   return u ? u.name : "Unbekannt";
 }
 
@@ -74,12 +83,26 @@ function fmtField(value) {
   return value > 0 ? value.toFixed(2).replace(".", ",") : "";
 }
 
+function icon(ref, extraClass = "") {
+  return `<svg class="icon ${extraClass}"><use href="${ref}"/></svg>`;
+}
+
+function tagChip(category) {
+  const tag = TAGS.includes(category) ? category : "Qualium";
+  const span = document.createElement("span");
+  span.className = "tag " + tag.toLowerCase();
+  span.textContent = tag;
+  return span;
+}
+
 // ---------- Rendering ----------
 
 function renderAll() {
   renderOverview();
   renderEntry();
+  renderPersons();
   renderLog();
+  if (state.sheet) renderSheet();
 }
 
 function renderOverview() {
@@ -107,21 +130,30 @@ function renderOverview() {
   sorted.forEach((u, i) => {
     const amount = bal.get(u.id) || 0;
     const li = document.createElement("li");
-    li.className = "rank-row";
+
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "rank-row";
+    row.addEventListener("click", () => openSheet("detail", u.id));
 
     const badge = document.createElement("span");
     badge.className = "rank-badge" + (i < 3 && amount > 0 ? " " + medalClass[i] : "");
     badge.textContent = String(i + 1);
 
+    const nameWrap = document.createElement("span");
+    nameWrap.className = "rank-name";
     const name = document.createElement("span");
-    name.className = "rank-name";
+    name.className = "name";
     name.textContent = u.name;
+    nameWrap.append(name, tagChip(u.category));
 
     const value = document.createElement("span");
     value.className = "rank-amount" + (amount <= 0 ? " settled" : "");
     value.textContent = amount <= 0 && amount > -0.005 ? "0,00 €" : eur.format(amount);
 
-    li.append(badge, name, value);
+    row.append(badge, nameWrap, value);
+    row.insertAdjacentHTML("beforeend", `<svg class="chevron"><use href="#i-chevron"/></svg>`);
+    li.appendChild(row);
     list.appendChild(li);
   });
 }
@@ -136,7 +168,7 @@ function personButton(user, isSelected, onSelect) {
 }
 
 function renderEntry() {
-  // Eintragen: Mehrfachauswahl für das Event
+  // Eintragen: Mehrfachauswahl für das Event (alphabetisch, scrollbar)
   const personGrid = $("#person-grid");
   personGrid.innerHTML = "";
   for (const u of state.users) {
@@ -149,7 +181,7 @@ function renderEntry() {
     );
   }
   if (state.users.length === 0) {
-    personGrid.innerHTML = '<p class="empty-hint">Noch keine Personen — unten anlegen.</p>';
+    personGrid.innerHTML = '<p class="empty-hint">Noch keine Personen — im Tab „Personen“ anlegen.</p>';
   }
 
   $("#amount-section").hidden = state.selection.size === 0;
@@ -218,7 +250,7 @@ function stepButton(iconRef, label, onClick) {
   btn.type = "button";
   btn.className = "step-btn";
   btn.setAttribute("aria-label", label);
-  btn.innerHTML = `<svg class="icon icon-s"><use href="${iconRef}"/></svg>`;
+  btn.innerHTML = icon(iconRef, "icon-s");
   btn.addEventListener("click", onClick);
   return btn;
 }
@@ -230,7 +262,200 @@ function stepAmount(personId, delta) {
   renderAmountList();
 }
 
-// ---------- Aktivitätenlog (nach Events gruppiert) ----------
+// ---------- Personen-Tab ----------
+
+function renderPersons() {
+  const bal = balances();
+  const list = $("#persons-list");
+  list.innerHTML = "";
+
+  if (state.users.length === 0) {
+    list.innerHTML = '<p class="empty-hint">Noch keine Personen angelegt.</p>';
+  }
+
+  for (const u of state.users) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "person-row";
+    row.addEventListener("click", () => openSheet("edit", u.id));
+
+    const avatar = document.createElement("span");
+    avatar.className = "avatar";
+    avatar.innerHTML = icon("#i-person");
+
+    const info = document.createElement("span");
+    info.className = "info";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = u.name;
+    info.append(name, tagChip(u.category));
+
+    const balance = document.createElement("span");
+    balance.className = "balance";
+    balance.textContent = eur.format(bal.get(u.id) || 0);
+
+    row.append(avatar, info, balance);
+    row.insertAdjacentHTML("beforeend", `<svg class="chevron"><use href="#i-chevron"/></svg>`);
+    list.appendChild(row);
+  }
+}
+
+function renderTagSelect(container, selected, onSelect) {
+  container.innerHTML = "";
+  for (const tag of TAGS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tag-btn" + (tag === selected ? " selected" : "");
+    btn.textContent = tag;
+    btn.addEventListener("click", () => onSelect(tag));
+    container.appendChild(btn);
+  }
+}
+
+// ---------- Sheet (Detail / Bearbeiten) ----------
+
+function openSheet(type, userId) {
+  state.sheet = { type, userId, draftTag: null };
+  renderSheet();
+  $("#sheet-backdrop").hidden = false;
+  $("#sheet").hidden = false;
+  requestAnimationFrame(() => {
+    $("#sheet-backdrop").classList.add("open");
+    $("#sheet").classList.add("open");
+  });
+}
+
+function closeSheet() {
+  state.sheet = null;
+  $("#sheet-backdrop").classList.remove("open");
+  $("#sheet").classList.remove("open");
+  setTimeout(() => {
+    $("#sheet-backdrop").hidden = true;
+    $("#sheet").hidden = true;
+  }, 320);
+}
+
+function renderSheet() {
+  if (!state.sheet) return;
+  const user = getUser(state.sheet.userId);
+  const content = $("#sheet-content");
+  if (!user) { closeSheet(); return; }
+
+  content.innerHTML = "";
+
+  if (state.sheet.type === "detail") {
+    const bal = balances().get(user.id) || 0;
+
+    const header = document.createElement("div");
+    header.className = "sheet-header";
+    const h = document.createElement("h3");
+    h.textContent = user.name;
+    header.append(h, tagChip(user.category));
+    content.appendChild(header);
+
+    const balance = document.createElement("p");
+    balance.className = "sheet-balance " + (bal > 0 ? "debt" : "settled");
+    balance.textContent = (bal > 0 ? "Offen: " : "Stand: ") + eur.format(bal);
+    content.appendChild(balance);
+
+    const label = document.createElement("p");
+    label.className = "field-label";
+    label.textContent = "Verlauf";
+    content.appendChild(label);
+
+    const txs = state.transactions.filter((t) => t.user_id === user.id);
+    if (txs.length === 0) {
+      const hint = document.createElement("p");
+      hint.className = "empty-hint";
+      hint.textContent = "Noch keine Einträge.";
+      content.appendChild(hint);
+      return;
+    }
+
+    const tile = document.createElement("div");
+    tile.className = "log-tile";
+    for (const t of txs) {
+      const amount = Number(t.amount);
+      const isPayment = amount < 0;
+      const date = new Date(t.created_at);
+      let meta = `${shortDateFmt.format(date)} · ${timeFmt.format(date)} Uhr`;
+      if (isPayment && t.events && t.events.entered_by_user_id) {
+        meta += ` · ausgetragen von ${userName(t.events.entered_by_user_id)}`;
+      }
+      tile.appendChild(logRow({
+        iconRef: isPayment ? "#i-check" : "#i-arrow-up",
+        iconClass: isPayment ? "payment" : "debt",
+        title: t.description || (isPayment ? "Zahlung" : "Schulden"),
+        meta,
+        amount,
+      }));
+    }
+    content.appendChild(tile);
+    return;
+  }
+
+  // type === "edit"
+  const header = document.createElement("div");
+  header.className = "sheet-header";
+  const h = document.createElement("h3");
+  h.textContent = "Person bearbeiten";
+  header.append(h);
+  content.appendChild(header);
+
+  const nameLabel = document.createElement("label");
+  nameLabel.className = "field-label";
+  nameLabel.textContent = "Name";
+  nameLabel.setAttribute("for", "edit-person-name");
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.id = "edit-person-name";
+  nameInput.className = "text-input";
+  nameInput.autocomplete = "off";
+  nameInput.value = user.name;
+
+  const tagLabel = document.createElement("p");
+  tagLabel.className = "field-label";
+  tagLabel.textContent = "Tag";
+  const tagSelect = document.createElement("div");
+  tagSelect.className = "tag-select";
+  const currentTag = () => state.sheet.draftTag || (TAGS.includes(user.category) ? user.category : "Qualium");
+  const paintTags = () => renderTagSelect(tagSelect, currentTag(), (tag) => {
+    state.sheet.draftTag = tag;
+    paintTags();
+  });
+  paintTags();
+
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "primary-btn";
+  save.textContent = "Speichern";
+  save.addEventListener("click", async () => {
+    const newName = nameInput.value.trim();
+    if (!newName) return toast("Bitte einen Namen eingeben.", "error");
+    const duplicate = state.users.some((u) => u.id !== user.id && u.name.toLowerCase() === newName.toLowerCase());
+    if (duplicate) return toast(`„${newName}“ gibt es schon.`, "error");
+    save.disabled = true;
+    try {
+      const { error } = await db
+        .from("users")
+        .update({ name: newName, category: currentTag() })
+        .eq("id", user.id);
+      if (error) throw error;
+      closeSheet();
+      await loadData();
+      toast(`${newName} gespeichert`);
+    } catch (err) {
+      console.error(err);
+      toast("Speichern fehlgeschlagen — bitte erneut versuchen.", "error");
+    } finally {
+      save.disabled = false;
+    }
+  });
+
+  content.append(nameLabel, nameInput, tagLabel, tagSelect, save);
+}
+
+// ---------- Aktivitätenlog (jede Aktivität als Kachel) ----------
 
 function dayLabel(date) {
   const today = new Date();
@@ -243,13 +468,9 @@ function dayLabel(date) {
   return dateFmt.format(date);
 }
 
-function icon(ref, extraClass = "") {
-  return `<svg class="icon ${extraClass}"><use href="${ref}"/></svg>`;
-}
-
-function logRow({ iconRef, iconClass, title, meta, amount }) {
+function logRow({ iconRef, iconClass, title, meta, amount, header = false }) {
   const row = document.createElement("div");
-  row.className = "log-row";
+  row.className = "log-row" + (header ? " header" : "");
   row.innerHTML = `
     <span class="log-icon ${iconClass}">${icon(iconRef)}</span>
     <div class="log-body">
@@ -296,17 +517,19 @@ function renderLog() {
       list.appendChild(h);
     }
 
+    const tile = document.createElement("div");
+    tile.className = "log-tile";
     const isPayment = g.items.every((t) => Number(t.amount) < 0);
 
     if (isPayment) {
-      // Zahlung: eine Zeile inkl. austragender Person
+      // Zahlung: eigene Kachel inkl. austragender Person
       for (const t of g.items) {
         const date = new Date(t.created_at);
         let meta = `${userName(t.user_id)} · ${timeFmt.format(date)} Uhr`;
         if (t.events && t.events.entered_by_user_id) {
           meta += ` · ausgetragen von ${userName(t.events.entered_by_user_id)}`;
         }
-        list.appendChild(logRow({
+        tile.appendChild(logRow({
           iconRef: "#i-check",
           iconClass: "payment",
           title: t.description || "Zahlung",
@@ -315,43 +538,29 @@ function renderLog() {
         }));
       }
     } else if (g.event) {
-      // Event: Block mit Kopfzeile und einer Zeile pro Person
-      const block = document.createElement("div");
-      block.className = "log-event";
-
+      // Event: Kachel mit Kopfzeile und einer Zeile pro Person
       const total = g.items.reduce((sum, t) => sum + Number(t.amount), 0);
-      const header = document.createElement("div");
-      header.className = "log-event-header";
-      header.innerHTML = `
-        <span class="log-icon event">${icon("#i-calendar")}</span>
-        <div class="log-body">
-          <div class="log-title"></div>
-          <div class="log-meta"></div>
-        </div>
-        <span class="log-amount debt"></span>`;
-      header.querySelector(".log-title").textContent = g.event.name;
-      header.querySelector(".log-meta").textContent =
-        `${g.items.length} ${g.items.length === 1 ? "Person" : "Personen"} · ${timeFmt.format(g.date)} Uhr`;
-      header.querySelector(".log-amount").textContent = "+" + eur.format(total);
-      block.appendChild(header);
-
-      const rows = document.createElement("div");
-      rows.className = "log-event-rows";
+      tile.appendChild(logRow({
+        iconRef: "#i-calendar",
+        iconClass: "event",
+        title: g.event.name,
+        meta: `${g.items.length} ${g.items.length === 1 ? "Person" : "Personen"} · ${timeFmt.format(g.date)} Uhr`,
+        amount: total,
+        header: true,
+      }));
       for (const t of g.items) {
-        rows.appendChild(logRow({
+        tile.appendChild(logRow({
           iconRef: "#i-person",
-          iconClass: "debt",
+          iconClass: "person",
           title: userName(t.user_id),
           meta: `${timeFmt.format(new Date(t.created_at))} Uhr`,
           amount: Number(t.amount),
         }));
       }
-      block.appendChild(rows);
-      list.appendChild(block);
     } else {
-      // Einzelner Eintrag ohne Event (ältere Daten)
+      // Einzelner Eintrag ohne Event (ältere Daten): ebenfalls eigene Kachel
       for (const t of g.items) {
-        list.appendChild(logRow({
+        tile.appendChild(logRow({
           iconRef: "#i-arrow-up",
           iconClass: "debt",
           title: t.description || "Schulden",
@@ -360,6 +569,8 @@ function renderLog() {
         }));
       }
     }
+
+    list.appendChild(tile);
   }
 }
 
@@ -507,10 +718,9 @@ async function addPerson() {
   const btn = $("#add-person-btn");
   btn.disabled = true;
   try {
-    const { error } = await db.from("users").insert({ name });
+    const { error } = await db.from("users").insert({ name, category: state.newPersonTag });
     if (error) throw error;
     input.value = "";
-    $("#add-person-form").hidden = true;
     await loadData();
     toast(`${name} wurde angelegt`);
   } catch (err) {
@@ -574,14 +784,21 @@ function init() {
 
   $("#submit-btn").addEventListener("click", submitEntry);
 
-  $("#add-person-toggle").addEventListener("click", () => {
-    const form = $("#add-person-form");
-    form.hidden = !form.hidden;
-    if (!form.hidden) $("#new-person-name").focus();
+  // Neue Person (Personen-Tab)
+  renderTagSelect($("#new-person-tags"), state.newPersonTag, function onTag(tag) {
+    state.newPersonTag = tag;
+    renderTagSelect($("#new-person-tags"), tag, onTag);
   });
   $("#add-person-btn").addEventListener("click", addPerson);
   $("#new-person-name").addEventListener("keydown", (e) => {
     if (e.key === "Enter") addPerson();
+  });
+
+  // Sheet schließen
+  $("#sheet-close").addEventListener("click", closeSheet);
+  $("#sheet-backdrop").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && state.sheet) closeSheet();
   });
 
   // Indikatoren initial positionieren (nach Font-Load erneut)
@@ -589,7 +806,7 @@ function init() {
   switchMode("add");
   const reposition = () => {
     moveIndicator($("#tab-bar"), $("#tab-bar .tab.active"));
-    moveIndicator($("#mode-seg"), $("#mode-seg .seg-btn.active"));
+    if (state.view === "entry") moveIndicator($("#mode-seg"), $("#mode-seg .seg-btn.active"));
   };
   window.addEventListener("resize", reposition);
   window.addEventListener("load", reposition);

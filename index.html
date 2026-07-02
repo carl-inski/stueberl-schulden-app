@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Stüberl-Schulden</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231b2c45'/><text x='32' y='44' font-size='34' font-family='-apple-system,Helvetica' font-weight='700' text-anchor='middle' fill='%236ee7a0'>€</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231b2c45'/><text x='32' y='44' font-size='34' font-family='-apple-system,Helvetica' font-weight='700' text-anchor='middle' fill='%2330d158'>€</text></svg>">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -37,9 +37,20 @@
       <circle cx="12" cy="8.2" r="3.4" fill="none" stroke="currentColor" stroke-width="1.9"/>
       <path d="M5.2 19.6c1.2-3.3 3.7-4.9 6.8-4.9s5.6 1.6 6.8 4.9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
     </symbol>
+    <symbol id="i-persons" viewBox="0 0 24 24">
+      <circle cx="9.2" cy="8.6" r="3.1" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="M3.2 19.2c1-3 3.2-4.4 6-4.4s5 1.4 6 4.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      <path d="M15.4 5.9a3.1 3.1 0 010 5.4M17.6 15.1c1.7.6 2.8 1.9 3.4 4.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
     <symbol id="i-calendar" viewBox="0 0 24 24">
       <rect x="4.2" y="5.4" width="15.6" height="14.2" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.9"/>
       <path d="M4.2 10.2h15.6M8.5 3.4v3M15.5 3.4v3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24">
+      <path d="M9.5 5.8l6.2 6.2-6.2 6.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24">
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
     </symbol>
   </svg>
 
@@ -64,7 +75,7 @@
       <div class="stat-row">
         <div class="glass stat-tile">
           <span class="stat-label">Offene Schulden</span>
-          <span class="stat-value warm" id="stat-total">&ndash;</span>
+          <span class="stat-value debt" id="stat-total">&ndash;</span>
         </div>
         <div class="glass stat-tile">
           <span class="stat-label">Schuldner</span>
@@ -91,10 +102,10 @@
 
         <div id="add-form">
           <label class="field-label" for="event-input">Event</label>
-          <input type="text" id="event-input" class="text-input" placeholder="z.&thinsp;B. Faschingsparty" autocomplete="off">
+          <input type="text" id="event-input" class="text-input" placeholder="z.&thinsp;B. Faschingsparty, Stübalabend &hellip;" autocomplete="off">
 
           <label class="field-label">Wer war dabei?</label>
-          <div class="person-grid" id="person-grid"></div>
+          <div class="person-grid scrollable" id="person-grid"></div>
 
           <div id="amount-section" hidden>
             <label class="field-label">Beträge</label>
@@ -113,7 +124,7 @@
 
         <div id="pay-form" hidden>
           <label class="field-label">Wer begleicht Schulden?</label>
-          <div class="person-grid" id="pay-person-grid"></div>
+          <div class="person-grid scrollable" id="pay-person-grid"></div>
 
           <label class="field-label" for="pay-amount">Betrag</label>
           <div class="amount-box">
@@ -134,27 +145,34 @@
           <input type="text" id="note-input" class="text-input" placeholder="z.&thinsp;B. bar bezahlt" autocomplete="off">
 
           <label class="field-label">Ausgetragen von</label>
-          <div class="person-grid" id="witness-grid"></div>
+          <div class="person-grid scrollable" id="witness-grid"></div>
           <p class="hint">Beim Begleichen trägt eine andere Person aus. Das wird im Log dokumentiert.</p>
         </div>
 
         <button type="button" class="primary-btn" id="submit-btn">Eintragen</button>
       </div>
+    </section>
 
-      <div class="add-person">
-        <button type="button" class="ghost-btn" id="add-person-toggle">
-          <svg class="icon icon-s"><use href="#i-person"/></svg>
-          Neue Person
-        </button>
-        <div class="glass card add-person-form" id="add-person-form" hidden>
-          <label class="field-label" for="new-person-name">Name</label>
-          <input type="text" id="new-person-name" class="text-input" placeholder="Name der Person" autocomplete="off">
-          <button type="button" class="primary-btn" id="add-person-btn">Person anlegen</button>
+    <!-- ===== Bereich 3: Personen verwalten ===== -->
+    <section id="view-persons" class="view" hidden>
+      <div class="glass card">
+        <h2 class="card-title">Personen</h2>
+        <div id="persons-list">
+          <p class="empty-hint">Lade Daten&hellip;</p>
         </div>
+      </div>
+
+      <div class="glass card">
+        <h2 class="card-title">Neue Person</h2>
+        <label class="field-label" for="new-person-name">Name</label>
+        <input type="text" id="new-person-name" class="text-input" placeholder="Name der Person" autocomplete="off">
+        <label class="field-label">Tag</label>
+        <div class="tag-select" id="new-person-tags"></div>
+        <button type="button" class="primary-btn" id="add-person-btn">Person anlegen</button>
       </div>
     </section>
 
-    <!-- ===== Bereich 3: Aktivitätenlog ===== -->
+    <!-- ===== Bereich 4: Aktivitätenlog ===== -->
     <section id="view-log" class="view" hidden>
       <div class="glass card">
         <h2 class="card-title">Aktivitäten</h2>
@@ -173,6 +191,10 @@
         <svg class="icon"><use href="#i-chart"/></svg>
         <span>Übersicht</span>
       </button>
+      <button type="button" class="tab" data-view="persons">
+        <svg class="icon"><use href="#i-persons"/></svg>
+        <span>Personen</span>
+      </button>
       <button type="button" class="tab" data-view="log">
         <svg class="icon"><use href="#i-clock"/></svg>
         <span>Log</span>
@@ -182,6 +204,16 @@
       <svg class="icon"><use href="#i-plus"/></svg>
     </button>
   </nav>
+
+  <!-- Sheet für Personen-Details und -Bearbeitung -->
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+  <div class="sheet glass" id="sheet" role="dialog" aria-modal="true" hidden>
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <button type="button" class="sheet-close" id="sheet-close" aria-label="Schließen">
+      <svg class="icon icon-s"><use href="#i-x"/></svg>
+    </button>
+    <div id="sheet-content"></div>
+  </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
 
