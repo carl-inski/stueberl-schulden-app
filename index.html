@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b2c45">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Stüberl-Schulden</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍺</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="bg-blobs" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <header class="app-header">
+    <div>
+      <h1>Stüberl&#8209;Schulden</h1>
+      <p class="subtitle">Pfarrei-Stüberl</p>
+    </div>
+    <div class="sync-status glass" id="sync-status">
+      <span class="dot" id="sync-dot"></span>
+      <span id="sync-label">Verbinde&hellip;</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ===== Bereich 1: Übersicht / Rangliste ===== -->
+    <section id="view-overview" class="view">
+      <div class="stat-row">
+        <div class="glass stat-tile">
+          <span class="stat-label">Offene Schulden</span>
+          <span class="stat-value warm" id="stat-total">&ndash;</span>
+        </div>
+        <div class="glass stat-tile">
+          <span class="stat-label">Schuldner</span>
+          <span class="stat-value" id="stat-debtors">&ndash;</span>
+        </div>
+      </div>
+
+      <div class="glass card">
+        <h2 class="card-title">Rangliste</h2>
+        <ol class="ranking" id="ranking">
+          <li class="empty-hint">Lade Daten&hellip;</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== Bereich 2: Eintragen / Begleichen ===== -->
+    <section id="view-entry" class="view" hidden>
+      <div class="glass card">
+        <div class="seg-control" id="mode-seg">
+          <div class="seg-indicator"></div>
+          <button type="button" class="seg-btn active" data-mode="add">Eintragen</button>
+          <button type="button" class="seg-btn" data-mode="pay">Begleichen</button>
+        </div>
+
+        <label class="field-label">Für wen?</label>
+        <div class="person-grid" id="person-grid"></div>
+
+        <label class="field-label" for="amount-input">Betrag</label>
+        <div class="amount-box">
+          <input type="text" id="amount-input" inputmode="decimal" placeholder="0,00" autocomplete="off">
+          <span class="euro">&euro;</span>
+        </div>
+        <div class="chips" id="quick-chips">
+          <button type="button" class="chip" data-add="0.5">+0,50</button>
+          <button type="button" class="chip" data-add="1">+1</button>
+          <button type="button" class="chip" data-add="1.5">+1,50</button>
+          <button type="button" class="chip" data-add="2">+2</button>
+          <button type="button" class="chip" data-add="5">+5</button>
+          <button type="button" class="chip chip-clear" data-clear>C</button>
+        </div>
+
+        <label class="field-label" for="desc-input">Beschreibung <span class="optional">(optional)</span></label>
+        <input type="text" id="desc-input" class="text-input" placeholder="z.&thinsp;B. Bier, Limo &hellip;" autocomplete="off">
+
+        <div id="pay-extra" hidden>
+          <label class="field-label">Ausgetragen von <span class="optional">(muss jemand anderes sein)</span></label>
+          <div class="person-grid" id="witness-grid"></div>
+          <p class="hint">Wer Schulden begleicht, braucht eine zweite Person, die den Eintrag bestätigt. Das wird im Log dokumentiert.</p>
+        </div>
+
+        <button type="button" class="primary-btn" id="submit-btn">Schulden eintragen</button>
+      </div>
+
+      <div class="add-person">
+        <button type="button" class="ghost-btn" id="add-person-toggle">+ Neue Person</button>
+        <div class="glass card add-person-form" id="add-person-form" hidden>
+          <label class="field-label" for="new-person-name">Name</label>
+          <input type="text" id="new-person-name" class="text-input" placeholder="Name der Person" autocomplete="off">
+          <button type="button" class="primary-btn" id="add-person-btn">Person anlegen</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Bereich 3: Aktivitätenlog ===== -->
+    <section id="view-log" class="view" hidden>
+      <div class="glass card">
+        <h2 class="card-title">Aktivitäten</h2>
+        <div id="log-list">
+          <p class="empty-hint">Lade Daten&hellip;</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="tab-bar glass" id="tab-bar">
+    <div class="seg-indicator"></div>
+    <button type="button" class="tab active" data-view="overview">
+      <span class="tab-icon">🏆</span><span>Übersicht</span>
+    </button>
+    <button type="button" class="tab" data-view="entry">
+      <span class="tab-icon">✏️</span><span>Eintragen</span>
+    </button>
+    <button type="button" class="tab" data-view="log">
+      <span class="tab-icon">📜</span><span>Log</span>
+    </button>
+  </nav>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/vendor/supabase.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
