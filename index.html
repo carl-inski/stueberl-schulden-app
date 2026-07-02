@@ -7,10 +7,41 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Stüberl-Schulden</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍺</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231b2c45'/><text x='32' y='44' font-size='34' font-family='-apple-system,Helvetica' font-weight='700' text-anchor='middle' fill='%236ee7a0'>€</text></svg>">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
+  <!-- SF-Symbol-artige Icons -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="i-chart" viewBox="0 0 24 24">
+      <path d="M5 20v-8M12 20V5.5M19 20v-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="M12 7.6V12l3.1 1.9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24">
+      <path d="M12 5.2v13.6M5.2 12h13.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24">
+      <path d="M5.2 12h13.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="M5.2 12.8l4.4 4.4L18.8 7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24">
+      <path d="M12 18.5v-13M6.6 10.9L12 5.5l5.4 5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-person" viewBox="0 0 24 24">
+      <circle cx="12" cy="8.2" r="3.4" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="M5.2 19.6c1.2-3.3 3.7-4.9 6.8-4.9s5.6 1.6 6.8 4.9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24">
+      <rect x="4.2" y="5.4" width="15.6" height="14.2" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="M4.2 10.2h15.6M8.5 3.4v3M15.5 3.4v3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+  </svg>
 
   <div class="bg-blobs" aria-hidden="true">
     <div class="blob blob-1"></div>
@@ -19,10 +50,7 @@
   </div>
 
   <header class="app-header">
-    <div>
-      <h1>Stüberl&#8209;Schulden</h1>
-      <p class="subtitle">Pfarrei-Stüberl</p>
-    </div>
+    <h1 class="large-title">Stüberl&#8209;Schulden</h1>
     <div class="sync-status glass" id="sync-status">
       <span class="dot" id="sync-dot"></span>
       <span id="sync-label">Verbinde&hellip;</span>
@@ -61,37 +89,63 @@
           <button type="button" class="seg-btn" data-mode="pay">Begleichen</button>
         </div>
 
-        <label class="field-label">Für wen?</label>
-        <div class="person-grid" id="person-grid"></div>
+        <div id="add-form">
+          <label class="field-label" for="event-input">Event</label>
+          <input type="text" id="event-input" class="text-input" placeholder="z.&thinsp;B. Faschingsparty" autocomplete="off">
 
-        <label class="field-label" for="amount-input">Betrag</label>
-        <div class="amount-box">
-          <input type="text" id="amount-input" inputmode="decimal" placeholder="0,00" autocomplete="off">
-          <span class="euro">&euro;</span>
+          <label class="field-label">Wer war dabei?</label>
+          <div class="person-grid" id="person-grid"></div>
+
+          <div id="amount-section" hidden>
+            <label class="field-label">Beträge</label>
+            <div class="chips">
+              <span class="chips-caption">Alle</span>
+              <button type="button" class="chip" data-all-add="0.5">+0,50</button>
+              <button type="button" class="chip" data-all-add="1">+1</button>
+              <button type="button" class="chip" data-all-add="2">+2</button>
+              <button type="button" class="chip chip-clear" data-all-clear aria-label="Alle Beträge zurücksetzen">
+                <svg class="icon icon-s"><use href="#i-minus"/></svg>
+              </button>
+            </div>
+            <div class="amount-list" id="amount-list"></div>
+          </div>
         </div>
-        <div class="chips" id="quick-chips">
-          <button type="button" class="chip" data-add="0.5">+0,50</button>
-          <button type="button" class="chip" data-add="1">+1</button>
-          <button type="button" class="chip" data-add="1.5">+1,50</button>
-          <button type="button" class="chip" data-add="2">+2</button>
-          <button type="button" class="chip" data-add="5">+5</button>
-          <button type="button" class="chip chip-clear" data-clear>C</button>
-        </div>
 
-        <label class="field-label" for="desc-input">Beschreibung <span class="optional">(optional)</span></label>
-        <input type="text" id="desc-input" class="text-input" placeholder="z.&thinsp;B. Bier, Limo &hellip;" autocomplete="off">
+        <div id="pay-form" hidden>
+          <label class="field-label">Wer begleicht Schulden?</label>
+          <div class="person-grid" id="pay-person-grid"></div>
 
-        <div id="pay-extra" hidden>
-          <label class="field-label">Ausgetragen von <span class="optional">(muss jemand anderes sein)</span></label>
+          <label class="field-label" for="pay-amount">Betrag</label>
+          <div class="amount-box">
+            <input type="text" id="pay-amount" inputmode="decimal" placeholder="0,00" autocomplete="off">
+            <span class="euro">&euro;</span>
+          </div>
+          <div class="chips" id="pay-chips">
+            <button type="button" class="chip" data-add="0.5">+0,50</button>
+            <button type="button" class="chip" data-add="1">+1</button>
+            <button type="button" class="chip" data-add="2">+2</button>
+            <button type="button" class="chip" data-add="5">+5</button>
+            <button type="button" class="chip chip-clear" data-clear aria-label="Betrag zurücksetzen">
+              <svg class="icon icon-s"><use href="#i-minus"/></svg>
+            </button>
+          </div>
+
+          <label class="field-label" for="note-input">Notiz <span class="optional">(optional)</span></label>
+          <input type="text" id="note-input" class="text-input" placeholder="z.&thinsp;B. bar bezahlt" autocomplete="off">
+
+          <label class="field-label">Ausgetragen von</label>
           <div class="person-grid" id="witness-grid"></div>
-          <p class="hint">Wer Schulden begleicht, braucht eine zweite Person, die den Eintrag bestätigt. Das wird im Log dokumentiert.</p>
+          <p class="hint">Beim Begleichen trägt eine andere Person aus. Das wird im Log dokumentiert.</p>
         </div>
 
-        <button type="button" class="primary-btn" id="submit-btn">Schulden eintragen</button>
+        <button type="button" class="primary-btn" id="submit-btn">Eintragen</button>
       </div>
 
       <div class="add-person">
-        <button type="button" class="ghost-btn" id="add-person-toggle">+ Neue Person</button>
+        <button type="button" class="ghost-btn" id="add-person-toggle">
+          <svg class="icon icon-s"><use href="#i-person"/></svg>
+          Neue Person
+        </button>
         <div class="glass card add-person-form" id="add-person-form" hidden>
           <label class="field-label" for="new-person-name">Name</label>
           <input type="text" id="new-person-name" class="text-input" placeholder="Name der Person" autocomplete="off">
@@ -112,16 +166,20 @@
 
   </main>
 
-  <nav class="tab-bar glass" id="tab-bar">
-    <div class="seg-indicator"></div>
-    <button type="button" class="tab active" data-view="overview">
-      <span class="tab-icon">🏆</span><span>Übersicht</span>
-    </button>
-    <button type="button" class="tab" data-view="entry">
-      <span class="tab-icon">✏️</span><span>Eintragen</span>
-    </button>
-    <button type="button" class="tab" data-view="log">
-      <span class="tab-icon">📜</span><span>Log</span>
+  <nav class="dock">
+    <div class="tab-bar glass" id="tab-bar">
+      <div class="seg-indicator"></div>
+      <button type="button" class="tab active" data-view="overview">
+        <svg class="icon"><use href="#i-chart"/></svg>
+        <span>Übersicht</span>
+      </button>
+      <button type="button" class="tab" data-view="log">
+        <svg class="icon"><use href="#i-clock"/></svg>
+        <span>Log</span>
+      </button>
+    </div>
+    <button type="button" class="fab glass" id="fab" aria-label="Eintragen">
+      <svg class="icon"><use href="#i-plus"/></svg>
     </button>
   </nav>
 

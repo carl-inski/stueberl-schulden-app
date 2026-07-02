@@ -20,12 +20,13 @@ const dateFmt = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digi
 // ---------- Zustand ----------
 
 const state = {
-  users: [],          // [{id, name, category, created_at}]
-  transactions: [],   // [{id, user_id, amount, description, created_at, events: {name, entered_by_user_id} | null}]
-  mode: "add",        // "add" | "pay"
-  personId: null,     // ausgewählte Person
-  witnessId: null,    // bestätigende Person (nur bei "pay")
-  view: "overview",
+  users: [],           // [{id, name, category, created_at}]
+  transactions: [],    // [{id, user_id, amount, description, created_at, events: {name, entered_by_user_id} | null}]
+  view: "overview",    // "overview" | "entry" | "log"
+  mode: "add",         // "add" | "pay"
+  selection: new Map(), // Event-Eintrag: personId -> Betrag (Auswahlreihenfolge bleibt erhalten)
+  payPersonId: null,
+  witnessId: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -60,11 +61,24 @@ function balances() {
   return map;
 }
 
+// ---------- Beträge parsen/formatieren ----------
+
+function parseAmount(raw) {
+  const cleaned = String(raw).trim().replace(/\s/g, "").replace(",", ".");
+  const value = Number(cleaned);
+  if (!cleaned || !Number.isFinite(value)) return NaN;
+  return Math.round(value * 100) / 100;
+}
+
+function fmtField(value) {
+  return value > 0 ? value.toFixed(2).replace(".", ",") : "";
+}
+
 // ---------- Rendering ----------
 
 function renderAll() {
   renderOverview();
-  renderPersonGrids();
+  renderEntry();
   renderLog();
 }
 
@@ -81,7 +95,6 @@ function renderOverview() {
     return diff !== 0 ? diff : a.name.localeCompare(b.name, "de");
   });
 
-  const medals = ["🥇", "🥈", "🥉"];
   const list = $("#ranking");
   list.innerHTML = "";
 
@@ -90,15 +103,15 @@ function renderOverview() {
     return;
   }
 
+  const medalClass = ["gold", "silver", "bronze"];
   sorted.forEach((u, i) => {
     const amount = bal.get(u.id) || 0;
     const li = document.createElement("li");
     li.className = "rank-row";
 
     const badge = document.createElement("span");
-    const hasMedal = i < 3 && amount > 0;
-    badge.className = "rank-badge" + (hasMedal ? " medal" : "");
-    badge.textContent = hasMedal ? medals[i] : String(i + 1);
+    badge.className = "rank-badge" + (i < 3 && amount > 0 ? " " + medalClass[i] : "");
+    badge.textContent = String(i + 1);
 
     const name = document.createElement("span");
     name.className = "rank-name";
@@ -113,24 +126,25 @@ function renderOverview() {
   });
 }
 
-function personButton(user, selectedId, onSelect) {
+function personButton(user, isSelected, onSelect) {
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "person-btn" + (user.id === selectedId ? " selected" : "");
+  btn.className = "person-btn" + (isSelected ? " selected" : "");
   btn.textContent = user.name;
   btn.addEventListener("click", () => onSelect(user.id));
   return btn;
 }
 
-function renderPersonGrids() {
+function renderEntry() {
+  // Eintragen: Mehrfachauswahl für das Event
   const personGrid = $("#person-grid");
   personGrid.innerHTML = "";
   for (const u of state.users) {
     personGrid.appendChild(
-      personButton(u, state.personId, (id) => {
-        state.personId = state.personId === id ? null : id;
-        if (state.witnessId === state.personId) state.witnessId = null;
-        renderPersonGrids();
+      personButton(u, state.selection.has(u.id), (id) => {
+        if (state.selection.has(id)) state.selection.delete(id);
+        else state.selection.set(id, 0);
+        renderEntry();
       })
     );
   }
@@ -138,18 +152,85 @@ function renderPersonGrids() {
     personGrid.innerHTML = '<p class="empty-hint">Noch keine Personen — unten anlegen.</p>';
   }
 
+  $("#amount-section").hidden = state.selection.size === 0;
+  renderAmountList();
+
+  // Begleichen: Einzelauswahl + austragende Person
+  const payGrid = $("#pay-person-grid");
+  payGrid.innerHTML = "";
+  for (const u of state.users) {
+    payGrid.appendChild(
+      personButton(u, u.id === state.payPersonId, (id) => {
+        state.payPersonId = state.payPersonId === id ? null : id;
+        if (state.witnessId === state.payPersonId) state.witnessId = null;
+        renderEntry();
+      })
+    );
+  }
+
   const witnessGrid = $("#witness-grid");
   witnessGrid.innerHTML = "";
-  const others = state.users.filter((u) => u.id !== state.personId);
-  for (const u of others) {
+  for (const u of state.users.filter((u) => u.id !== state.payPersonId)) {
     witnessGrid.appendChild(
-      personButton(u, state.witnessId, (id) => {
+      personButton(u, u.id === state.witnessId, (id) => {
         state.witnessId = state.witnessId === id ? null : id;
-        renderPersonGrids();
+        renderEntry();
       })
     );
   }
 }
+
+function renderAmountList() {
+  const list = $("#amount-list");
+  list.innerHTML = "";
+
+  for (const [personId, amount] of state.selection) {
+    const row = document.createElement("div");
+    row.className = "amount-row";
+
+    const name = document.createElement("span");
+    name.className = "amount-name";
+    name.textContent = userName(personId);
+
+    const minus = stepButton("#i-minus", "Betrag verringern", () => stepAmount(personId, -0.5));
+    const plus = stepButton("#i-plus", "Betrag erhöhen", () => stepAmount(personId, 0.5));
+
+    const field = document.createElement("input");
+    field.type = "text";
+    field.inputMode = "decimal";
+    field.autocomplete = "off";
+    field.className = "amount-field";
+    field.placeholder = "0,00";
+    field.value = fmtField(amount);
+    field.addEventListener("change", () => {
+      const value = parseAmount(field.value);
+      state.selection.set(personId, Number.isFinite(value) && value > 0 ? value : 0);
+      field.value = fmtField(state.selection.get(personId));
+    });
+
+    row.append(name, minus, field, plus);
+    list.appendChild(row);
+  }
+}
+
+function stepButton(iconRef, label, onClick) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "step-btn";
+  btn.setAttribute("aria-label", label);
+  btn.innerHTML = `<svg class="icon icon-s"><use href="${iconRef}"/></svg>`;
+  btn.addEventListener("click", onClick);
+  return btn;
+}
+
+function stepAmount(personId, delta) {
+  const current = state.selection.get(personId) || 0;
+  const next = Math.max(0, Math.round((current + delta) * 100) / 100);
+  state.selection.set(personId, next);
+  renderAmountList();
+}
+
+// ---------- Aktivitätenlog (nach Events gruppiert) ----------
 
 function dayLabel(date) {
   const today = new Date();
@@ -162,6 +243,26 @@ function dayLabel(date) {
   return dateFmt.format(date);
 }
 
+function icon(ref, extraClass = "") {
+  return `<svg class="icon ${extraClass}"><use href="${ref}"/></svg>`;
+}
+
+function logRow({ iconRef, iconClass, title, meta, amount }) {
+  const row = document.createElement("div");
+  row.className = "log-row";
+  row.innerHTML = `
+    <span class="log-icon ${iconClass}">${icon(iconRef)}</span>
+    <div class="log-body">
+      <div class="log-title"></div>
+      <div class="log-meta"></div>
+    </div>
+    <span class="log-amount ${amount < 0 ? "payment" : "debt"}"></span>`;
+  row.querySelector(".log-title").textContent = title;
+  row.querySelector(".log-meta").textContent = meta;
+  row.querySelector(".log-amount").textContent = (amount < 0 ? "−" : "+") + eur.format(Math.abs(amount));
+  return row;
+}
+
 function renderLog() {
   const list = $("#log-list");
   list.innerHTML = "";
@@ -171,10 +272,22 @@ function renderLog() {
     return;
   }
 
-  let currentDay = null;
+  // Transaktionen (bereits absteigend sortiert) nach Event bündeln
+  const groups = [];
+  const byKey = new Map();
   for (const t of state.transactions) {
-    const date = new Date(t.created_at);
-    const label = dayLabel(date);
+    const key = t.event_id || `tx-${t.id}`;
+    if (!byKey.has(key)) {
+      const group = { event: t.events, items: [], date: new Date(t.created_at) };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    byKey.get(key).items.push(t);
+  }
+
+  let currentDay = null;
+  for (const g of groups) {
+    const label = dayLabel(g.date);
     if (label !== currentDay) {
       currentDay = label;
       const h = document.createElement("p");
@@ -183,47 +296,83 @@ function renderLog() {
       list.appendChild(h);
     }
 
-    const amount = Number(t.amount);
-    const isPayment = amount < 0;
+    const isPayment = g.items.every((t) => Number(t.amount) < 0);
 
-    const row = document.createElement("div");
-    row.className = "log-row";
+    if (isPayment) {
+      // Zahlung: eine Zeile inkl. austragender Person
+      for (const t of g.items) {
+        const date = new Date(t.created_at);
+        let meta = `${userName(t.user_id)} · ${timeFmt.format(date)} Uhr`;
+        if (t.events && t.events.entered_by_user_id) {
+          meta += ` · ausgetragen von ${userName(t.events.entered_by_user_id)}`;
+        }
+        list.appendChild(logRow({
+          iconRef: "#i-check",
+          iconClass: "payment",
+          title: t.description || "Zahlung",
+          meta,
+          amount: Number(t.amount),
+        }));
+      }
+    } else if (g.event) {
+      // Event: Block mit Kopfzeile und einer Zeile pro Person
+      const block = document.createElement("div");
+      block.className = "log-event";
 
-    const icon = document.createElement("span");
-    icon.className = "log-icon " + (isPayment ? "payment" : "debt");
-    icon.textContent = isPayment ? "✓" : "🍺";
+      const total = g.items.reduce((sum, t) => sum + Number(t.amount), 0);
+      const header = document.createElement("div");
+      header.className = "log-event-header";
+      header.innerHTML = `
+        <span class="log-icon event">${icon("#i-calendar")}</span>
+        <div class="log-body">
+          <div class="log-title"></div>
+          <div class="log-meta"></div>
+        </div>
+        <span class="log-amount debt"></span>`;
+      header.querySelector(".log-title").textContent = g.event.name;
+      header.querySelector(".log-meta").textContent =
+        `${g.items.length} ${g.items.length === 1 ? "Person" : "Personen"} · ${timeFmt.format(g.date)} Uhr`;
+      header.querySelector(".log-amount").textContent = "+" + eur.format(total);
+      block.appendChild(header);
 
-    const body = document.createElement("div");
-    body.className = "log-body";
-
-    const title = document.createElement("div");
-    title.className = "log-title";
-    title.textContent = t.description || (isPayment ? "Zahlung" : "Schulden");
-
-    const meta = document.createElement("div");
-    meta.className = "log-meta";
-    let metaText = `${userName(t.user_id)} · ${timeFmt.format(date)} Uhr`;
-    if (isPayment && t.events && t.events.entered_by_user_id) {
-      metaText += ` · ausgetragen von ${userName(t.events.entered_by_user_id)}`;
+      const rows = document.createElement("div");
+      rows.className = "log-event-rows";
+      for (const t of g.items) {
+        rows.appendChild(logRow({
+          iconRef: "#i-person",
+          iconClass: "debt",
+          title: userName(t.user_id),
+          meta: `${timeFmt.format(new Date(t.created_at))} Uhr`,
+          amount: Number(t.amount),
+        }));
+      }
+      block.appendChild(rows);
+      list.appendChild(block);
+    } else {
+      // Einzelner Eintrag ohne Event (ältere Daten)
+      for (const t of g.items) {
+        list.appendChild(logRow({
+          iconRef: "#i-arrow-up",
+          iconClass: "debt",
+          title: t.description || "Schulden",
+          meta: `${userName(t.user_id)} · ${timeFmt.format(new Date(t.created_at))} Uhr`,
+          amount: Number(t.amount),
+        }));
+      }
     }
-    meta.textContent = metaText;
-
-    body.append(title, meta);
-
-    const value = document.createElement("span");
-    value.className = "log-amount " + (isPayment ? "payment" : "debt");
-    value.textContent = (isPayment ? "−" : "+") + eur.format(Math.abs(amount));
-
-    row.append(icon, body, value);
-    list.appendChild(row);
   }
 }
 
-// ---------- Tabs & Segmented Controls ----------
+// ---------- Navigation & Segmented Controls ----------
 
 function moveIndicator(container, activeBtn) {
   const indicator = container.querySelector(".seg-indicator");
-  if (!indicator || !activeBtn) return;
+  if (!indicator) return;
+  if (!activeBtn) {
+    indicator.style.opacity = "0";
+    return;
+  }
+  indicator.style.opacity = "1";
   indicator.style.width = activeBtn.offsetWidth + "px";
   indicator.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
 }
@@ -238,6 +387,11 @@ function switchView(view) {
     tab.classList.toggle("active", tab.dataset.view === view);
   }
   moveIndicator(bar, bar.querySelector(".tab.active"));
+  $("#fab").classList.toggle("active", view === "entry");
+  if (view === "entry") {
+    // Erst nach dem Einblenden haben die Buttons eine messbare Breite
+    moveIndicator($("#mode-seg"), $("#mode-seg .seg-btn.active"));
+  }
 }
 
 function switchMode(mode) {
@@ -248,24 +402,14 @@ function switchMode(mode) {
   }
   moveIndicator(seg, seg.querySelector(".seg-btn.active"));
 
-  $("#pay-extra").hidden = mode !== "pay";
+  $("#add-form").hidden = mode !== "add";
+  $("#pay-form").hidden = mode !== "pay";
   const submit = $("#submit-btn");
-  submit.textContent = mode === "pay" ? "Schulden begleichen" : "Schulden eintragen";
+  submit.textContent = mode === "pay" ? "Schulden begleichen" : "Eintragen";
   submit.classList.toggle("pay-mode", mode === "pay");
 }
 
-// ---------- Eingaben ----------
-
-function parseAmount() {
-  const raw = $("#amount-input").value.trim().replace(/\s/g, "").replace(",", ".");
-  const value = Number(raw);
-  if (!raw || !Number.isFinite(value)) return NaN;
-  return Math.round(value * 100) / 100;
-}
-
-function setAmount(value) {
-  $("#amount-input").value = value > 0 ? value.toFixed(2).replace(".", ",") : "";
-}
+// ---------- Aktionen ----------
 
 function toast(message, type = "success") {
   const el = $("#toast");
@@ -275,57 +419,76 @@ function toast(message, type = "success") {
   toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+async function submitAdd() {
+  if (state.selection.size === 0) return toast("Bitte mindestens eine Person auswählen.", "error");
+  for (const [personId, amount] of state.selection) {
+    if (!(amount > 0)) return toast(`Betrag fehlt für ${userName(personId)}.`, "error");
+  }
+  const eventName = $("#event-input").value.trim() || "Stüberl-Runde";
+
+  const { data: event, error: eventError } = await db
+    .from("events")
+    .insert({ name: eventName })
+    .select()
+    .single();
+  if (eventError) throw eventError;
+
+  const rows = [...state.selection.entries()].map(([userId, amount]) => ({
+    user_id: userId,
+    amount,
+    description: eventName,
+    event_id: event.id,
+  }));
+  const { error } = await db.from("transactions").insert(rows);
+  if (error) throw error;
+
+  const count = rows.length;
+  $("#event-input").value = "";
+  state.selection = new Map();
+  await loadData();
+  toast(`„${eventName}“ – ${count} ${count === 1 ? "Eintrag" : "Einträge"} gespeichert`);
+}
+
+async function submitPay() {
+  const amount = parseAmount($("#pay-amount").value);
+  if (!state.payPersonId) return toast("Bitte eine Person auswählen.", "error");
+  if (!Number.isFinite(amount) || amount <= 0) return toast("Bitte einen gültigen Betrag eingeben.", "error");
+  if (!state.witnessId) return toast("Bitte angeben, wer austrägt.", "error");
+  if (state.witnessId === state.payPersonId) return toast("Man kann nicht für sich selbst austragen.", "error");
+
+  const note = $("#note-input").value.trim();
+  const payerName = userName(state.payPersonId);
+
+  // Austragen: Event dokumentiert, wer den Eintrag vorgenommen hat.
+  const { data: event, error: eventError } = await db
+    .from("events")
+    .insert({ name: note || "Zahlung", entered_by_user_id: state.witnessId })
+    .select()
+    .single();
+  if (eventError) throw eventError;
+
+  const { error } = await db.from("transactions").insert({
+    user_id: state.payPersonId,
+    amount: -amount,
+    description: note || "Zahlung",
+    event_id: event.id,
+  });
+  if (error) throw error;
+
+  $("#pay-amount").value = "";
+  $("#note-input").value = "";
+  state.payPersonId = null;
+  state.witnessId = null;
+  await loadData();
+  toast(`${eur.format(amount)} von ${payerName} beglichen`);
+}
+
 async function submitEntry() {
   const btn = $("#submit-btn");
-  const amount = parseAmount();
-  const description = $("#desc-input").value.trim();
-
-  if (!state.personId) return toast("Bitte eine Person auswählen.", "error");
-  if (!Number.isFinite(amount) || amount <= 0) return toast("Bitte einen gültigen Betrag eingeben.", "error");
-  if (state.mode === "pay") {
-    if (!state.witnessId) return toast("Bitte angeben, wer austrägt.", "error");
-    if (state.witnessId === state.personId) return toast("Man kann nicht für sich selbst austragen.", "error");
-  }
-
   btn.disabled = true;
   try {
-    let message;
-    if (state.mode === "add") {
-      const { error } = await db.from("transactions").insert({
-        user_id: state.personId,
-        amount: amount,
-        description: description || "Schulden",
-      });
-      if (error) throw error;
-      message = `${eur.format(amount)} für ${userName(state.personId)} eingetragen ✓`;
-    } else {
-      // Austragen: Event dokumentiert, wer den Eintrag vorgenommen hat.
-      const { data: event, error: eventError } = await db
-        .from("events")
-        .insert({
-          name: description || "Zahlung",
-          entered_by_user_id: state.witnessId,
-        })
-        .select()
-        .single();
-      if (eventError) throw eventError;
-
-      const { error } = await db.from("transactions").insert({
-        user_id: state.personId,
-        amount: -amount,
-        description: description || "Zahlung",
-        event_id: event.id,
-      });
-      if (error) throw error;
-      message = `${eur.format(amount)} von ${userName(state.personId)} beglichen ✓`;
-    }
-
-    setAmount(0);
-    $("#desc-input").value = "";
-    state.personId = null;
-    state.witnessId = null;
-    await loadData();
-    toast(message);
+    if (state.mode === "add") await submitAdd();
+    else await submitPay();
   } catch (err) {
     console.error(err);
     toast("Speichern fehlgeschlagen — bitte erneut versuchen.", "error");
@@ -348,8 +511,8 @@ async function addPerson() {
     if (error) throw error;
     input.value = "";
     $("#add-person-form").hidden = true;
-    toast(`${name} wurde angelegt ✓`);
     await loadData();
+    toast(`${name} wurde angelegt`);
   } catch (err) {
     console.error(err);
     toast("Anlegen fehlgeschlagen — bitte erneut versuchen.", "error");
@@ -370,27 +533,43 @@ function setSyncStatus(status, label) {
 // ---------- Initialisierung ----------
 
 function init() {
-  // Tab-Navigation
+  // Navigation: Tab-Pille + Plus-Button
   for (const tab of document.querySelectorAll("#tab-bar .tab")) {
     tab.addEventListener("click", () => switchView(tab.dataset.view));
   }
+  $("#fab").addEventListener("click", () => switchView("entry"));
 
   // Modus-Umschalter (Eintragen / Begleichen)
   for (const btn of document.querySelectorAll("#mode-seg .seg-btn")) {
     btn.addEventListener("click", () => switchMode(btn.dataset.mode));
   }
 
-  // Schnellbeträge
-  $("#quick-chips").addEventListener("click", (e) => {
+  // "Alle"-Schnellbeträge im Event-Eintrag
+  $("#add-form").addEventListener("click", (e) => {
     const chip = e.target.closest(".chip");
     if (!chip) return;
+    if (chip.hasAttribute("data-all-clear")) {
+      for (const id of state.selection.keys()) state.selection.set(id, 0);
+    } else if (chip.dataset.allAdd) {
+      for (const [id, value] of state.selection) {
+        state.selection.set(id, Math.round((value + Number(chip.dataset.allAdd)) * 100) / 100);
+      }
+    }
+    renderAmountList();
+  });
+
+  // Schnellbeträge beim Begleichen
+  $("#pay-chips").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    const field = $("#pay-amount");
     if (chip.hasAttribute("data-clear")) {
-      setAmount(0);
+      field.value = "";
       return;
     }
-    const current = parseAmount();
+    const current = parseAmount(field.value);
     const base = Number.isFinite(current) && current > 0 ? current : 0;
-    setAmount(base + Number(chip.dataset.add));
+    field.value = fmtField(base + Number(chip.dataset.add));
   });
 
   $("#submit-btn").addEventListener("click", submitEntry);
@@ -408,14 +587,12 @@ function init() {
   // Indikatoren initial positionieren (nach Font-Load erneut)
   switchView("overview");
   switchMode("add");
-  window.addEventListener("resize", () => {
+  const reposition = () => {
     moveIndicator($("#tab-bar"), $("#tab-bar .tab.active"));
     moveIndicator($("#mode-seg"), $("#mode-seg .seg-btn.active"));
-  });
-  window.addEventListener("load", () => {
-    moveIndicator($("#tab-bar"), $("#tab-bar .tab.active"));
-    moveIndicator($("#mode-seg"), $("#mode-seg .seg-btn.active"));
-  });
+  };
+  window.addEventListener("resize", reposition);
+  window.addEventListener("load", reposition);
 
   // Erste Daten + Live-Updates
   loadData()
