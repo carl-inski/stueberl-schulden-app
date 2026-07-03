@@ -93,7 +93,11 @@ function updatePaypalLink() {
   if (!link) return;
   const amount = parseAmount($("#pay-amount").value);
   if (Number.isFinite(amount) && amount > 0) {
-    link.href = `https://paypal.me/${PAYPAL_ME}/${amount.toFixed(2)}EUR`;
+    // Bewusst ohne Währungscode-Suffix (z. B. "EUR"): Bekannter PayPal-Bug,
+    // bei dem paypal.me-Links mit angehängter Währung beim Öffnen der
+    // nativen Mobile-App den Betrag verlieren, während der reine Betrag
+    // korrekt übernommen wird. Das Konto nutzt ohnehin Euro als Standard.
+    link.href = `https://paypal.me/${PAYPAL_ME}/${amount.toFixed(2)}`;
     link.removeAttribute("aria-disabled");
   } else {
     link.href = "#";
