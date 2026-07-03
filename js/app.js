@@ -13,7 +13,7 @@ if (!window.supabase) {
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const TAGS = ["Qualium", "Alumni", "Extern"];
+const TAGS = ["Pfarrjugend", "Alumni", "Extern"];
 
 const eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const timeFmt = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
@@ -30,7 +30,7 @@ const state = {
   selection: new Map(), // Event-Eintrag: personId -> Betrag
   payPersonId: null,
   witnessId: null,
-  newPersonTag: "Qualium",
+  newPersonTag: "Pfarrjugend",
   sheet: null,          // { type: "detail" | "edit", userId, draftTag? } | null
 };
 
@@ -88,7 +88,7 @@ function icon(ref, extraClass = "") {
 }
 
 function tagChip(category) {
-  const tag = TAGS.includes(category) ? category : "Qualium";
+  const tag = TAGS.includes(category) ? category : "Pfarrjugend";
   const span = document.createElement("span");
   span.className = "tag " + tag.toLowerCase();
   span.textContent = tag;
@@ -115,16 +115,22 @@ function renderOverview() {
     ? "Alles beglichen"
     : `${debtorCount} ${debtorCount === 1 ? "Person hat" : "Personen haben"} offene Schulden`;
 
-  const sorted = [...state.users].sort((a, b) => {
-    const diff = (bal.get(b.id) || 0) - (bal.get(a.id) || 0);
-    return diff !== 0 ? diff : a.name.localeCompare(b.name, "de");
-  });
+  const sorted = [...state.users]
+    .filter((u) => (bal.get(u.id) || 0) > 0.004)
+    .sort((a, b) => {
+      const diff = (bal.get(b.id) || 0) - (bal.get(a.id) || 0);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name, "de");
+    });
 
   const list = $("#ranking");
   list.innerHTML = "";
 
-  if (sorted.length === 0) {
+  if (state.users.length === 0) {
     list.innerHTML = '<li class="empty-hint">Noch keine Personen angelegt.</li>';
+    return;
+  }
+  if (sorted.length === 0) {
+    list.innerHTML = '<li class="empty-hint">Keine offenen Schulden — alles beglichen.</li>';
     return;
   }
 
@@ -139,7 +145,7 @@ function renderOverview() {
     row.addEventListener("click", () => openSheet("detail", u.id));
 
     const badge = document.createElement("span");
-    badge.className = "rank-badge" + (i < 3 && amount > 0 ? " " + medalClass[i] : "");
+    badge.className = "rank-badge" + (i < 3 ? " " + medalClass[i] : "");
     badge.textContent = String(i + 1);
 
     const nameWrap = document.createElement("span");
@@ -147,11 +153,15 @@ function renderOverview() {
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = u.name;
-    nameWrap.append(name, tagChip(u.category));
+    nameWrap.appendChild(name);
+    // In der Übersicht nur Alumni/Extern-Tags zeigen — Pfarrjugend ist der Standard und wäre reines Rauschen.
+    if (u.category === "Alumni" || u.category === "Extern") {
+      nameWrap.appendChild(tagChip(u.category));
+    }
 
     const value = document.createElement("span");
-    value.className = "rank-amount" + (amount <= 0 ? " settled" : "");
-    value.textContent = amount <= 0 && amount > -0.005 ? "0,00 €" : eur.format(amount);
+    value.className = "rank-amount";
+    value.textContent = eur.format(amount);
 
     row.append(badge, nameWrap, value);
     row.insertAdjacentHTML("beforeend", `<svg class="chevron"><use href="#i-chevron"/></svg>`);
@@ -197,6 +207,9 @@ function renderEntry() {
       personButton(u, u.id === state.payPersonId, (id) => {
         state.payPersonId = state.payPersonId === id ? null : id;
         if (state.witnessId === state.payPersonId) state.witnessId = null;
+        // Vorschlagsbetrag: offener Saldo der ausgewählten Person
+        const bal = state.payPersonId ? balances().get(state.payPersonId) || 0 : 0;
+        $("#pay-amount").value = bal > 0 ? fmtField(bal) : "";
         renderEntry();
       })
     );
@@ -420,7 +433,7 @@ function renderSheet() {
   tagLabel.textContent = "Tag";
   const tagSelect = document.createElement("div");
   tagSelect.className = "tag-select";
-  const currentTag = () => state.sheet.draftTag || (TAGS.includes(user.category) ? user.category : "Qualium");
+  const currentTag = () => state.sheet.draftTag || (TAGS.includes(user.category) ? user.category : "Pfarrjugend");
   const paintTags = () => renderTagSelect(tagSelect, currentTag(), (tag) => {
     state.sheet.draftTag = tag;
     paintTags();
