@@ -756,6 +756,35 @@ li:last-child > .rank-row,
 .primary-btn:active { transform: scale(0.97); }
 .primary-btn:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
 
+/* PayPal-Komfort-Link: öffnet paypal.me mit dem gewählten Betrag,
+   trägt aber selbst nichts in die Datenbank ein — reines Blau der
+   PayPal-Marke, damit klar erkennbar als externer, separater Schritt. */
+.paypal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  border-radius: var(--radius-m);
+  padding: 13px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  background: #0070ba;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 112, 186, 0.28);
+  transition: transform 0.18s var(--spring), opacity 0.25s var(--ease);
+}
+
+.paypal-btn:active { transform: scale(0.97); }
+.paypal-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* ---------- Aktivitätenlog ---------- */
 
 .log-day {

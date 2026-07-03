@@ -83,6 +83,24 @@ function fmtField(value) {
   return value > 0 ? value.toFixed(2).replace(".", ",") : "";
 }
 
+const PAYPAL_ME = "sjbstueberl";
+
+// Hält den PayPal-Komfort-Link mit dem aktuell eingetragenen Betrag synchron.
+// Öffnet paypal.me nur mit vorausgefülltem Betrag — trägt selbst nichts in
+// die Datenbank ein, das bleibt der bestehende "Schulden begleichen"-Klick.
+function updatePaypalLink() {
+  const link = $("#paypal-link");
+  if (!link) return;
+  const amount = parseAmount($("#pay-amount").value);
+  if (Number.isFinite(amount) && amount > 0) {
+    link.href = `https://paypal.me/${PAYPAL_ME}/${amount.toFixed(2)}EUR`;
+    link.removeAttribute("aria-disabled");
+  } else {
+    link.href = "#";
+    link.setAttribute("aria-disabled", "true");
+  }
+}
+
 function icon(ref, extraClass = "") {
   return `<svg class="icon ${extraClass}"><use href="${ref}"/></svg>`;
 }
@@ -210,6 +228,7 @@ function renderEntry() {
         // Vorschlagsbetrag: offener Saldo der ausgewählten Person
         const bal = state.payPersonId ? balances().get(state.payPersonId) || 0 : 0;
         $("#pay-amount").value = bal > 0 ? fmtField(bal) : "";
+        updatePaypalLink();
         renderEntry();
       })
     );
@@ -647,6 +666,7 @@ function switchMode(mode) {
   const submit = $("#submit-btn");
   submit.textContent = mode === "pay" ? "Schulden begleichen" : "Eintragen";
   submit.classList.toggle("pay-mode", mode === "pay");
+  if (mode === "pay") updatePaypalLink();
 }
 
 // ---------- Aktionen ----------
@@ -719,6 +739,7 @@ async function submitPay() {
   $("#note-input").value = "";
   state.payPersonId = null;
   state.witnessId = null;
+  updatePaypalLink();
   await loadData();
   toast(`${eur.format(amount)} von ${payerName} beglichen`);
 }
@@ -822,12 +843,16 @@ function init() {
     const field = $("#pay-amount");
     if (chip.hasAttribute("data-clear")) {
       field.value = "";
-      return;
+    } else {
+      const current = parseAmount(field.value);
+      const base = Number.isFinite(current) && current > 0 ? current : 0;
+      field.value = fmtField(base + Number(chip.dataset.add));
     }
-    const current = parseAmount(field.value);
-    const base = Number.isFinite(current) && current > 0 ? current : 0;
-    field.value = fmtField(base + Number(chip.dataset.add));
+    updatePaypalLink();
   });
+
+  // Manuelle Betragseingabe hält den PayPal-Link ebenfalls synchron
+  $("#pay-amount").addEventListener("input", updatePaypalLink);
 
   $("#submit-btn").addEventListener("click", submitEntry);
 
