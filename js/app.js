@@ -111,7 +111,9 @@ function renderOverview() {
   const totalOpen = [...bal.values()].filter((v) => v > 0).reduce((a, b) => a + b, 0);
   const debtorCount = [...bal.values()].filter((v) => v > 0).length;
   $("#stat-total").textContent = eur.format(totalOpen);
-  $("#stat-debtors").textContent = String(debtorCount);
+  $("#hero-sub").textContent = debtorCount === 0
+    ? "Alles beglichen"
+    : `${debtorCount} ${debtorCount === 1 ? "Person hat" : "Personen haben"} offene Schulden`;
 
   const sorted = [...state.users].sort((a, b) => {
     const diff = (bal.get(b.id) || 0) - (bal.get(a.id) || 0);

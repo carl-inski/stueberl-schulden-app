@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1b2c45">
+  <meta name="theme-color" content="#f2f1f6">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Stüberl-Schulden</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231b2c45'/><text x='32' y='44' font-size='34' font-family='-apple-system,Helvetica' font-weight='700' text-anchor='middle' fill='%2330d158'>€</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23c9a5ee'/><stop offset='0.55' stop-color='%23f2d3a0'/><stop offset='1' stop-color='%23f7c46c'/></linearGradient></defs><rect width='64' height='64' rx='14' fill='url(%23g)'/><text x='32' y='44' font-size='32' font-family='-apple-system,Helvetica' font-weight='700' text-anchor='middle' fill='%23473657'>€</text></svg>">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -54,15 +54,15 @@
     </symbol>
   </svg>
 
-  <div class="bg-blobs" aria-hidden="true">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
+  <div class="bg-wash" aria-hidden="true">
+    <div class="wash wash-1"></div>
+    <div class="wash wash-2"></div>
+    <div class="wash wash-3"></div>
   </div>
 
   <header class="app-header">
     <h1 class="large-title">Stüberl&#8209;Schulden</h1>
-    <div class="sync-status glass" id="sync-status">
+    <div class="sync-status" id="sync-status">
       <span class="dot" id="sync-dot"></span>
       <span id="sync-label">Verbinde&hellip;</span>
     </div>
@@ -72,19 +72,19 @@
 
     <!-- ===== Bereich 1: Übersicht / Rangliste ===== -->
     <section id="view-overview" class="view">
-      <div class="stat-row">
-        <div class="glass stat-tile">
-          <span class="stat-label">Offene Schulden</span>
-          <span class="stat-value debt" id="stat-total">&ndash;</span>
+      <div class="hero-card" aria-label="Offene Schulden gesamt">
+        <div class="hero-top">
+          <span class="hero-logo">&euro;</span>
+          <span class="hero-brand">Stüberl</span>
         </div>
-        <div class="glass stat-tile">
-          <span class="stat-label">Schuldner</span>
-          <span class="stat-value" id="stat-debtors">&ndash;</span>
-        </div>
+        <p class="hero-label">Offene Schulden</p>
+        <p class="hero-amount" id="stat-total">&ndash;</p>
+        <p class="hero-sub" id="hero-sub">&nbsp;</p>
+        <div class="hero-rings" aria-hidden="true"><span></span><span></span></div>
       </div>
 
-      <div class="glass card">
-        <h2 class="card-title">Rangliste</h2>
+      <h2 class="section-title">Rangliste</h2>
+      <div class="card">
         <ol class="ranking" id="ranking">
           <li class="empty-hint">Lade Daten&hellip;</li>
         </ol>
@@ -93,7 +93,7 @@
 
     <!-- ===== Bereich 2: Eintragen / Begleichen ===== -->
     <section id="view-entry" class="view" hidden>
-      <div class="glass card">
+      <div class="card form-card">
         <div class="seg-control" id="mode-seg">
           <div class="seg-indicator"></div>
           <button type="button" class="seg-btn active" data-mode="add">Eintragen</button>
@@ -155,15 +155,15 @@
 
     <!-- ===== Bereich 3: Personen verwalten ===== -->
     <section id="view-persons" class="view" hidden>
-      <div class="glass card">
-        <h2 class="card-title">Personen</h2>
+      <h2 class="section-title">Personen</h2>
+      <div class="card">
         <div id="persons-list">
           <p class="empty-hint">Lade Daten&hellip;</p>
         </div>
       </div>
 
-      <div class="glass card">
-        <h2 class="card-title">Neue Person</h2>
+      <h2 class="section-title">Neue Person</h2>
+      <div class="card form-card">
         <label class="field-label" for="new-person-name">Name</label>
         <input type="text" id="new-person-name" class="text-input" placeholder="Name der Person" autocomplete="off">
         <label class="field-label">Tag</label>
@@ -174,18 +174,16 @@
 
     <!-- ===== Bereich 4: Aktivitätenlog ===== -->
     <section id="view-log" class="view" hidden>
-      <div class="glass card">
-        <h2 class="card-title">Aktivitäten</h2>
-        <div id="log-list">
-          <p class="empty-hint">Lade Daten&hellip;</p>
-        </div>
+      <h2 class="section-title">Aktivitäten</h2>
+      <div id="log-list">
+        <p class="empty-hint">Lade Daten&hellip;</p>
       </div>
     </section>
 
   </main>
 
   <nav class="dock">
-    <div class="tab-bar glass" id="tab-bar">
+    <div class="tab-bar" id="tab-bar">
       <div class="seg-indicator"></div>
       <button type="button" class="tab active" data-view="overview">
         <svg class="icon"><use href="#i-chart"/></svg>
@@ -200,14 +198,14 @@
         <span>Log</span>
       </button>
     </div>
-    <button type="button" class="fab glass" id="fab" aria-label="Eintragen">
+    <button type="button" class="fab" id="fab" aria-label="Eintragen">
       <svg class="icon"><use href="#i-plus"/></svg>
     </button>
   </nav>
 
   <!-- Sheet für Personen-Details und -Bearbeitung -->
   <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
-  <div class="sheet glass" id="sheet" role="dialog" aria-modal="true" hidden>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" hidden>
     <div class="sheet-grabber" aria-hidden="true"></div>
     <button type="button" class="sheet-close" id="sheet-close" aria-label="Schließen">
       <svg class="icon icon-s"><use href="#i-x"/></svg>
