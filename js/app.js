@@ -217,13 +217,20 @@ function renderEntry() {
 
   const witnessGrid = $("#witness-grid");
   witnessGrid.innerHTML = "";
-  for (const u of state.users.filter((u) => u.id !== state.payPersonId)) {
+  // Nur Pfarrjugend-Mitglieder dürfen Zahlungen als "ausgetragen" bestätigen.
+  const eligibleWitnesses = state.users.filter(
+    (u) => u.id !== state.payPersonId && u.category === "Pfarrjugend"
+  );
+  for (const u of eligibleWitnesses) {
     witnessGrid.appendChild(
       personButton(u, u.id === state.witnessId, (id) => {
         state.witnessId = state.witnessId === id ? null : id;
         renderEntry();
       })
     );
+  }
+  if (eligibleWitnesses.length === 0) {
+    witnessGrid.innerHTML = '<p class="empty-hint">Keine Pfarrjugend-Mitglieder verfügbar.</p>';
   }
 }
 
@@ -603,10 +610,17 @@ function moveIndicator(container, activeBtn) {
   indicator.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
 }
 
-function switchView(view) {
+function switchView(view, animate = true) {
   state.view = view;
   for (const section of document.querySelectorAll(".view")) {
-    section.hidden = section.id !== `view-${view}`;
+    const isTarget = section.id === `view-${view}`;
+    section.hidden = !isTarget;
+    section.classList.remove("enter");
+    if (isTarget && animate) {
+      // Reflow erzwingen, damit die Animation bei jedem Wechsel neu startet.
+      void section.offsetWidth;
+      section.classList.add("enter");
+    }
   }
   const bar = $("#tab-bar");
   for (const tab of bar.querySelectorAll(".tab")) {
@@ -816,8 +830,11 @@ function init() {
     if (e.key === "Escape" && state.sheet) closeSheet();
   });
 
-  // Indikatoren initial positionieren (nach Font-Load erneut)
-  switchView("overview");
+  // Indikatoren initial positionieren (nach Font-Load erneut).
+  // Ohne Animation: sie beim allerersten Aufbau (noch vor Daten-/Layout-
+  // Stabilisierung) zu starten, konnte zu einem eingefrorenen Zwischenbild
+  // führen, das erst beim nächsten Tab-Wechsel "aufgeräumt" wurde.
+  switchView("overview", false);
   switchMode("add");
   const reposition = () => {
     moveIndicator($("#tab-bar"), $("#tab-bar .tab.active"));

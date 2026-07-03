@@ -52,6 +52,14 @@
     <symbol id="i-x" viewBox="0 0 24 24">
       <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
     </symbol>
+    <symbol id="i-sjb-mark" viewBox="0 0 132 56">
+      <circle cx="26" cy="28" r="23" fill="none" stroke="currentColor" stroke-width="4"/>
+      <path d="M20 20c4 -3 10 -3 12 2s-6 6 -2 11c3 3.5 8 3 11 0" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+      <path d="M50 6h30M50 6v34M65 6v34M80 6v20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M96 4v48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="110" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="4"/>
+      <circle cx="108" cy="40" r="11" fill="none" stroke="currentColor" stroke-width="4"/>
+    </symbol>
   </svg>
 
   <div class="bg-wash" aria-hidden="true">
@@ -80,7 +88,9 @@
         <p class="hero-label">Offene Schulden</p>
         <p class="hero-amount" id="stat-total">&ndash;</p>
         <p class="hero-sub" id="hero-sub">&nbsp;</p>
-        <div class="hero-rings" aria-hidden="true"><span></span><span></span></div>
+        <div class="hero-mark" aria-hidden="true">
+          <svg><use href="#i-sjb-mark"/></svg>
+        </div>
       </div>
 
       <h2 class="section-title">Rangliste</h2>

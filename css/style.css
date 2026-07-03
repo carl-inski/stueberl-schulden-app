@@ -172,7 +172,10 @@ main {
   padding: 14px 16px calc(118px + env(safe-area-inset-bottom, 0px));
 }
 
-.view { animation: view-in 0.35s var(--ease); }
+/* Einblend-Animation nur bei aktivem Tab-Wechsel (Klasse wird per JS
+   gesetzt) — beim allerersten Seitenaufbau bleibt sie aus, damit nichts
+   mitten in einer noch nicht abgeschlossenen Animation "einfriert". */
+.view.enter { animation: view-in 0.35s var(--ease); }
 
 @keyframes view-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -280,21 +283,20 @@ main {
   color: rgba(58, 42, 78, 0.65);
 }
 
-.hero-rings {
+.hero-mark {
   position: absolute;
   right: 18px;
   bottom: 16px;
-  display: flex;
-}
-
-.hero-rings span {
-  width: 26px;
+  width: 62px;
   height: 26px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(58, 42, 78, 0.35);
+  color: rgba(58, 42, 78, 0.35);
 }
 
-.hero-rings span + span { margin-left: -10px; }
+.hero-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 
 /* ---------- Listen-Zeilen (Rangliste & Personen) ---------- */
 
@@ -906,6 +908,8 @@ li:last-child > .rank-row,
   flex: none;
   width: 58px;
   height: 58px;
+  padding: 0;
+  margin: 0;
   display: grid;
   place-items: center;
   border-radius: 50%;
