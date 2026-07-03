@@ -217,6 +217,10 @@ main {
   border-radius: var(--radius-l);
   padding: 18px 20px 20px;
   margin-bottom: 6px;
+  /* Eigene Compositing-Ebene erzwingen — Workaround für einen WebKit-Bug,
+     bei dem Textänderungen (z. B. der geladene Betrag) über geblurten
+     Hintergrundflächen manchmal nicht zuverlässig neu gemalt werden. */
+  transform: translateZ(0);
   background:
     radial-gradient(120% 150% at 8% 0%, rgba(196, 149, 237, 0.85) 0%, rgba(228, 199, 245, 0.45) 34%, transparent 62%),
     radial-gradient(130% 160% at 96% 100%, rgba(247, 196, 108, 0.95) 0%, rgba(250, 219, 156, 0.5) 40%, transparent 70%),

@@ -760,6 +760,24 @@ async function addPerson() {
   }
 }
 
+// ---------- Repaint erzwingen (iOS-Safari-Workaround) ----------
+
+// Auf iOS Safari malt der Browser nach dem ersten async Datenladen manchmal
+// nicht zuverlässig neu, wenn im selben Stacking-Kontext geblurte/transparente
+// Flächen liegen (unsere Hintergrund-Washes, die Hero-Karte) — reine
+// textContent-Änderungen bleiben dann bis zum nächsten "harten" Layout-
+// Ereignis (z. B. Tab-Wechsel) unsichtbar "hängen". Wir erzwingen genau das:
+// hidden kurz umschalten und einen Reflow abgreifen, ohne dass es sichtbar
+// aufblitzt (geschieht synchron vor dem nächsten Paint).
+function forceRepaint(view) {
+  const section = document.getElementById(`view-${view}`);
+  if (!section) return;
+  const wasHidden = section.hidden;
+  section.hidden = true;
+  void section.offsetHeight;
+  section.hidden = wasHidden;
+}
+
 // ---------- Sync-Status ----------
 
 function setSyncStatus(status, label) {
@@ -845,7 +863,13 @@ function init() {
 
   // Erste Daten + Live-Updates
   loadData()
-    .then(() => setSyncStatus("online", "Live"))
+    .then(() => {
+      setSyncStatus("online", "Live");
+      // Direkt nach dem ersten Rendern mit echten Daten erzwungen neu malen
+      // (siehe forceRepaint-Kommentar) — sonst bleibt der Inhalt auf manchen
+      // Geräten/Browsern bis zum nächsten Tab-Wechsel in einem Zwischenzustand.
+      requestAnimationFrame(() => forceRepaint(state.view));
+    })
     .catch((err) => {
       console.error(err);
       setSyncStatus("error", "Offline");
