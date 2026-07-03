@@ -93,11 +93,12 @@ function updatePaypalLink() {
   if (!link) return;
   const amount = parseAmount($("#pay-amount").value);
   if (Number.isFinite(amount) && amount > 0) {
-    // Bewusst ohne Währungscode-Suffix (z. B. "EUR"): Bekannter PayPal-Bug,
-    // bei dem paypal.me-Links mit angehängter Währung beim Öffnen der
-    // nativen Mobile-App den Betrag verlieren, während der reine Betrag
-    // korrekt übernommen wird. Das Konto nutzt ohnehin Euro als Standard.
-    link.href = `https://paypal.me/${PAYPAL_ME}/${amount.toFixed(2)}`;
+    // Deutschsprachige PayPal.me-Profile erwarten den Betrag offenbar im
+    // deutschen Zahlenformat (Komma statt Punkt, z. B. "3,80") und über den
+    // vollen paypalme-Pfad — mit US-Format (Punkt) landete der Link zuvor
+    // nur auf der Profilseite ohne vorausgefüllten Betrag.
+    const amountDE = amount.toFixed(2).replace(".", ",");
+    link.href = `https://www.paypal.com/paypalme/${PAYPAL_ME}/${amountDE}`;
     link.removeAttribute("aria-disabled");
   } else {
     link.href = "#";
