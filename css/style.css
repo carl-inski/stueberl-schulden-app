@@ -283,19 +283,24 @@ main {
   color: rgba(58, 42, 78, 0.65);
 }
 
+/* SJB-Logo als Maske: das Original-PNG (transparenter Hintergrund,
+   Bounding-Box 898×487px) bestimmt die Form, background-color liefert
+   die Farbe — dadurch exakt einfärbbar in jedem gewünschten Ton. */
 .hero-mark {
   position: absolute;
   right: 18px;
   bottom: 16px;
-  width: 62px;
   height: 26px;
-  color: rgba(58, 42, 78, 0.35);
-}
-
-.hero-mark svg {
-  width: 100%;
-  height: 100%;
-  display: block;
+  aspect-ratio: 898 / 487;
+  background-color: rgba(58, 42, 78, 0.35);
+  -webkit-mask-image: url("../assets/sjb-logo.png");
+  mask-image: url("../assets/sjb-logo.png");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 
 /* ---------- Listen-Zeilen (Rangliste & Personen) ---------- */
