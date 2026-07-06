@@ -1,11 +1,7 @@
 import { ImageResponse } from "@vercel/og";
+import { fetchDebtors, eur } from "./_lib.js";
 
 export const config = { runtime: "edge" };
-
-const SUPABASE_URL = "https://netvekbtbfarqsjsqrun.supabase.co";
-const SUPABASE_KEY = "sb_publishable_r2dkvTHLX7YYX3ICyO-uGw_PSdrA58E";
-
-const eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 
 // Baut ein Satori-Element ohne React/JSX — @vercel/og braucht nur diese Form
 // ({ type, props: { style, children } }), kein React zur Laufzeit nötig.
@@ -13,43 +9,21 @@ function h(type, style, children) {
   return { type, props: { style, children } };
 }
 
-async function fetchTotals() {
-  const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
-  const [usersRes, txRes] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/users?select=id`, { headers }),
-    fetch(`${SUPABASE_URL}/rest/v1/transactions?select=user_id,amount`, { headers }),
-  ]);
-  if (!usersRes.ok || !txRes.ok) throw new Error("Supabase-Anfrage fehlgeschlagen");
+export default async function handler(request) {
+  // ?scope=pfarrjugend zählt nur Pfarrjugend (für den Telegram-Report);
+  // ohne Parameter bleibt es die App-Linkvorschau über alle Kategorien.
+  const scope = new URL(request.url).searchParams.get("scope") || undefined;
 
-  const users = await usersRes.json();
-  const txs = await txRes.json();
-  const balances = new Map(users.map((u) => [u.id, 0]));
-  for (const t of txs) {
-    balances.set(t.user_id, (balances.get(t.user_id) || 0) + Number(t.amount));
-  }
-
-  let total = 0;
-  let debtors = 0;
-  for (const bal of balances.values()) {
-    if (bal > 0.004) {
-      total += bal;
-      debtors += 1;
-    }
-  }
-  return { total, debtors };
-}
-
-export default async function handler() {
   let amountLabel = "—";
   let subLabel = "Schuldenübersicht fürs Stüberl";
 
   try {
-    const { total, debtors } = await fetchTotals();
+    const { total, count } = await fetchDebtors(scope);
     amountLabel = eur.format(total);
     subLabel =
-      debtors === 0
+      count === 0
         ? "Alle Schulden beglichen"
-        : `${debtors} ${debtors === 1 ? "Person hat" : "Personen haben"} offene Schulden`;
+        : `${count} ${count === 1 ? "Person hat" : "Personen haben"} offene Schulden`;
   } catch {
     // Fällt auf einen neutralen Text zurück, statt falsche Zahlen zu zeigen.
   }
