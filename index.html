@@ -71,6 +71,10 @@
     <symbol id="i-external" viewBox="0 0 24 24">
       <path d="M9.5 6.5h8v8M17.3 6.7L6.7 17.3" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="10.8" cy="10.8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="M15.6 15.6L20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
   </svg>
 
   <div class="bg-wash" aria-hidden="true">
@@ -200,6 +204,13 @@
     <!-- ===== Bereich 4: Aktivitätenlog ===== -->
     <section id="view-log" class="view" hidden>
       <h2 class="section-title">Aktivitäten</h2>
+      <div class="search-bar">
+        <svg class="search-icon"><use href="#i-search"/></svg>
+        <input type="search" id="log-search" placeholder="Event, Person oder Datum &hellip;" autocomplete="off" enterkeyhint="search">
+        <button type="button" class="search-clear" id="log-search-clear" hidden aria-label="Suche löschen">
+          <svg class="icon icon-s"><use href="#i-x"/></svg>
+        </button>
+      </div>
       <div id="log-list">
         <p class="empty-hint">Lade Daten&hellip;</p>
       </div>

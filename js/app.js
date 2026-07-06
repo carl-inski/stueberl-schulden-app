@@ -19,6 +19,7 @@ const eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" 
 const timeFmt = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 const dateFmt = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
 const shortDateFmt = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+const monthYearFmt = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
 
 // ---------- Zustand ----------
 
@@ -32,6 +33,7 @@ const state = {
   witnessId: null,
   newPersonTag: "Pfarrjugend",
   sheet: null,          // { type: "detail" | "edit", userId, draftTag? } | null
+  logSearch: "",        // Freitext-Filter im Aktivitätenlog
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -530,6 +532,24 @@ function logRow({ iconRef, iconClass, title, meta, amount, header = false }) {
   return row;
 }
 
+// Durchsuchbarer Text einer Log-Gruppe: Event-Name, alle beteiligten
+// Personen, austragende Person, Beschreibungen und mehrere Datumsformate.
+function groupSearchText(g) {
+  const parts = [];
+  if (g.event && g.event.name) parts.push(g.event.name);
+  for (const t of g.items) {
+    parts.push(userName(t.user_id));
+    if (t.description) parts.push(t.description);
+    if (t.events && t.events.entered_by_user_id) parts.push(userName(t.events.entered_by_user_id));
+  }
+  const d = g.date;
+  parts.push(shortDateFmt.format(d));   // 03.07.26
+  parts.push(dateFmt.format(d));        // Freitag, 03.07.2026
+  parts.push(monthYearFmt.format(d));   // Juli 2026
+  parts.push(dayLabel(d));              // Heute / Gestern / …
+  return parts.join(" ").toLowerCase();
+}
+
 function renderLog() {
   const list = $("#log-list");
   list.innerHTML = "";
@@ -552,8 +572,25 @@ function renderLog() {
     byKey.get(key).items.push(t);
   }
 
+  // Freitextsuche: alle Suchbegriffe müssen (in beliebiger Reihenfolge) passen.
+  const tokens = state.logSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const visibleGroups = tokens.length
+    ? groups.filter((g) => {
+        const text = groupSearchText(g);
+        return tokens.every((tok) => text.includes(tok));
+      })
+    : groups;
+
+  if (visibleGroups.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = `Keine Treffer für „${state.logSearch.trim()}“.`;
+    list.appendChild(hint);
+    return;
+  }
+
   let currentDay = null;
-  for (const g of groups) {
+  for (const g of visibleGroups) {
     const label = dayLabel(g.date);
     if (label !== currentDay) {
       currentDay = label;
@@ -869,6 +906,22 @@ function init() {
   $("#add-person-btn").addEventListener("click", addPerson);
   $("#new-person-name").addEventListener("keydown", (e) => {
     if (e.key === "Enter") addPerson();
+  });
+
+  // Log-Suche
+  const searchInput = $("#log-search");
+  const searchClear = $("#log-search-clear");
+  searchInput.addEventListener("input", () => {
+    state.logSearch = searchInput.value;
+    searchClear.hidden = searchInput.value.length === 0;
+    renderLog();
+  });
+  searchClear.addEventListener("click", () => {
+    searchInput.value = "";
+    state.logSearch = "";
+    searchClear.hidden = true;
+    renderLog();
+    searchInput.focus();
   });
 
   // Sheet schließen

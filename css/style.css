@@ -191,6 +191,66 @@ main {
 
 .view > .section-title:first-child { margin-top: 6px; }
 
+/* ---------- Suchleiste (Log) ---------- */
+
+.search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0 0 12px;
+}
+
+.search-bar .search-icon {
+  position: absolute;
+  left: 13px;
+  width: 18px;
+  height: 18px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+#log-search {
+  width: 100%;
+  border: none;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  padding: 12px 42px 12px 40px;
+  border-radius: var(--radius-m);
+  outline: none;
+  -webkit-appearance: none;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.25s var(--ease);
+}
+
+#log-search::placeholder { color: var(--text-tertiary); }
+
+#log-search:focus-visible { box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.35); }
+
+/* Natives Clear-Kreuz von type=search unterdrücken (eigenes verwenden) */
+#log-search::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+.search-clear {
+  position: absolute;
+  right: 9px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--fill-strong);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: transform 0.18s var(--spring);
+}
+
+.search-clear:active { transform: scale(0.88); }
+
+/* Explizites display würde sonst das native [hidden] überschreiben */
+.search-clear[hidden] { display: none; }
+
 .card {
   background: var(--surface);
   border-radius: var(--radius-l);
