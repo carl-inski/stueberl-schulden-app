@@ -31,3 +31,62 @@ export async function fetchDebtors(scope) {
   const total = list.reduce((sum, u) => sum + u.bal, 0);
   return { total, debtors: list, count: list.length };
 }
+
+// ---------- Telegram-Report ----------
+
+const dateFmt = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+const monthFmt = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
+
+const MAX_LINES = 25; // Telegram-Foto-Caption ist auf 1024 Zeichen begrenzt
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function buildCaption(total, debtors) {
+  const now = new Date();
+  const lines = [];
+  lines.push("<b>SJB Stüberl – Schuldenstand</b>");
+  lines.push(monthFmt.format(now));
+  lines.push("");
+
+  if (debtors.length === 0) {
+    lines.push("Aktuell hat niemand in der Pfarrjugend offene Schulden. 🎉");
+    lines.push("");
+  } else {
+    const shown = debtors.slice(0, MAX_LINES);
+    shown.forEach((d, i) => {
+      lines.push(`${i + 1}. ${escapeHtml(d.name)} — ${eur.format(d.bal)}`);
+    });
+    if (debtors.length > shown.length) {
+      lines.push(`… und ${debtors.length - shown.length} weitere`);
+    }
+    lines.push("");
+    lines.push(`<b>Gesamt: ${eur.format(total)}</b>`);
+  }
+  lines.push(`Stand: ${dateFmt.format(now)}`);
+  return lines.join("\n");
+}
+
+// Holt den Pfarrjugend-Schuldenstand und postet ihn (Bild + Caption) in einen Chat.
+export async function sendReport({ token, chatId, origin }) {
+  const { total, debtors } = await fetchDebtors("pfarrjugend");
+  const caption = buildCaption(total, debtors);
+  const imageUrl = `${origin}/api/og?scope=pfarrjugend&t=${Date.now()}`;
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption, parse_mode: "HTML" }),
+  });
+  const json = await res.json().catch(() => ({}));
+  return { ok: !!json.ok, telegram: json, count: debtors.length };
+}
+
+export async function sendMessage({ token, chatId, text }) {
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text }),
+  });
+}
