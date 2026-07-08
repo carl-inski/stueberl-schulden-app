@@ -34,6 +34,8 @@ export async function fetchDebtors(scope) {
 
 // ---------- Telegram-Report ----------
 
+export const APP_URL = "https://stueberl.vercel.app";
+
 const dateFmt = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 const monthFmt = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
 
@@ -65,6 +67,8 @@ export function buildCaption(total, debtors) {
     lines.push(`<b>Gesamt: ${eur.format(total)}</b>`);
   }
   lines.push(`Stand: ${dateFmt.format(now)}`);
+  lines.push("");
+  lines.push(`<a href="${APP_URL}">${APP_URL.replace("https://", "")}</a>`);
   return lines.join("\n");
 }
 
