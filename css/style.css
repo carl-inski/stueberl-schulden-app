@@ -880,6 +880,9 @@ li:last-child > .rank-row,
 
 .log-row.header { background: #fafafc; }
 
+.log-row.clickable { cursor: pointer; }
+.log-row.clickable:active { background: var(--fill); }
+
 .log-icon {
   flex: none;
   width: 37px;
@@ -1106,6 +1109,18 @@ li:last-child > .rank-row,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sheet-header.wrap h3 {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.sheet-meta {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
 }
 
 .sheet-balance {

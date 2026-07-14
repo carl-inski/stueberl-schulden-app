@@ -32,7 +32,7 @@ const state = {
   payPersonId: null,
   witnessId: null,
   newPersonTag: "Pfarrjugend",
-  sheet: null,          // { type: "detail" | "edit", userId, draftTag? } | null
+  sheet: null,          // { type: "detail" | "edit" | "event", id, draftTag? } | null
   logSearch: "",        // Freitext-Filter im Aktivitätenlog
 };
 
@@ -362,8 +362,8 @@ function renderTagSelect(container, selected, onSelect) {
 
 // ---------- Sheet (Detail / Bearbeiten) ----------
 
-function openSheet(type, userId) {
-  state.sheet = { type, userId, draftTag: null };
+function openSheet(type, id) {
+  state.sheet = { type, id, draftTag: null };
   renderSheet();
   $("#sheet-backdrop").hidden = false;
   $("#sheet").hidden = false;
@@ -385,11 +385,55 @@ function closeSheet() {
 
 function renderSheet() {
   if (!state.sheet) return;
-  const user = getUser(state.sheet.userId);
   const content = $("#sheet-content");
-  if (!user) { closeSheet(); return; }
-
   content.innerHTML = "";
+
+  if (state.sheet.type === "event") {
+    const txs = state.transactions.filter((t) => t.event_id === state.sheet.id);
+    if (txs.length === 0) { closeSheet(); return; }
+    const event = txs[0].events;
+    const date = new Date(txs[0].created_at);
+    const total = txs.reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const header = document.createElement("div");
+    header.className = "sheet-header wrap";
+    const h = document.createElement("h3");
+    h.textContent = (event && event.name) || "Event";
+    header.append(h);
+    content.appendChild(header);
+
+    const meta = document.createElement("p");
+    meta.className = "sheet-meta";
+    meta.textContent = `${txs.length} ${txs.length === 1 ? "Person" : "Personen"} · ${dateFmt.format(date)} · ${timeFmt.format(date)} Uhr`;
+    content.appendChild(meta);
+
+    const balance = document.createElement("p");
+    balance.className = "sheet-balance " + (total < 0 ? "settled" : "debt");
+    balance.textContent = (total < 0 ? "−" : "+") + eur.format(Math.abs(total));
+    content.appendChild(balance);
+
+    const label = document.createElement("p");
+    label.className = "field-label";
+    label.textContent = "Teilnehmer";
+    content.appendChild(label);
+
+    const tile = document.createElement("div");
+    tile.className = "log-tile";
+    for (const t of txs) {
+      tile.appendChild(logRow({
+        iconRef: "#i-person",
+        iconClass: "person",
+        title: userName(t.user_id),
+        meta: `${timeFmt.format(new Date(t.created_at))} Uhr`,
+        amount: Number(t.amount),
+      }));
+    }
+    content.appendChild(tile);
+    return;
+  }
+
+  const user = getUser(state.sheet.id);
+  if (!user) { closeSheet(); return; }
 
   if (state.sheet.type === "detail") {
     const bal = balances().get(user.id) || 0;
@@ -516,7 +560,7 @@ function dayLabel(date) {
   return dateFmt.format(date);
 }
 
-function logRow({ iconRef, iconClass, title, meta, amount, header = false }) {
+function logRow({ iconRef, iconClass, title, meta, amount, header = false, onClick }) {
   const row = document.createElement("div");
   row.className = "log-row" + (header ? " header" : "");
   row.innerHTML = `
@@ -529,6 +573,10 @@ function logRow({ iconRef, iconClass, title, meta, amount, header = false }) {
   row.querySelector(".log-title").textContent = title;
   row.querySelector(".log-meta").textContent = meta;
   row.querySelector(".log-amount").textContent = (amount < 0 ? "−" : "+") + eur.format(Math.abs(amount));
+  if (onClick) {
+    row.classList.add("clickable");
+    row.addEventListener("click", onClick);
+  }
   return row;
 }
 
@@ -618,6 +666,7 @@ function renderLog() {
           title: t.description || "Zahlung",
           meta,
           amount: Number(t.amount),
+          onClick: () => openSheet("event", t.event_id),
         }));
       }
     } else if (g.event) {
@@ -630,6 +679,7 @@ function renderLog() {
         meta: `${g.items.length} ${g.items.length === 1 ? "Person" : "Personen"} · ${timeFmt.format(g.date)} Uhr`,
         amount: total,
         header: true,
+        onClick: () => openSheet("event", g.items[0].event_id),
       }));
       for (const t of g.items) {
         tile.appendChild(logRow({
