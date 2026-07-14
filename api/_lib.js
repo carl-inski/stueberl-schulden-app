@@ -110,12 +110,24 @@ export async function sendReport({ token, chatId, origin }) {
   const previousId = await getLastMessageId(chatId);
   if (previousId) {
     // Best effort: alte Nachricht kann bereits gelöscht/zu alt sein — dann
-    // einfach ignorieren und trotzdem den neuen Stand posten.
-    await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, message_id: previousId }),
-    }).catch(() => {});
+    // einfach ignorieren und trotzdem den neuen Stand posten. Ergebnis wird
+    // geloggt, damit ein Fehlschlag sichtbar/diagnostizierbar ist statt
+    // stillschweigend zu verschwinden.
+    try {
+      const delRes = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, message_id: previousId }),
+      });
+      const delJson = await delRes.json().catch(() => ({}));
+      console.log(
+        `deleteMessage chat_id=${chatId} message_id=${previousId} ok=${delJson.ok} ${
+          delJson.ok ? "" : "error=" + JSON.stringify(delJson)
+        }`
+      );
+    } catch (err) {
+      console.log(`deleteMessage chat_id=${chatId} message_id=${previousId} network-error=${err}`);
+    }
   }
 
   const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
@@ -124,8 +136,10 @@ export async function sendReport({ token, chatId, origin }) {
     body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption, parse_mode: "HTML" }),
   });
   const json = await res.json().catch(() => ({}));
+  if (!json.ok) console.log(`sendPhoto chat_id=${chatId} failed: ${JSON.stringify(json)}`);
 
   if (json.ok && json.result && json.result.message_id) {
+    console.log(`sendPhoto chat_id=${chatId} new message_id=${json.result.message_id}`);
     await setLastMessageId(chatId, json.result.message_id);
   }
 
