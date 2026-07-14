@@ -72,11 +72,51 @@ export function buildCaption(total, debtors) {
   return lines.join("\n");
 }
 
+// ---------- Alten Report-Nachricht pro Chat nachhalten (für Auto-Löschen) ----------
+
+async function getLastMessageId(chatId) {
+  const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/telegram_report_messages?chat_id=eq.${chatId}&select=message_id`,
+    { headers }
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0]?.message_id ?? null;
+}
+
+async function setLastMessageId(chatId, messageId) {
+  const headers = {
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${SUPABASE_KEY}`,
+    "Content-Type": "application/json",
+    Prefer: "resolution=merge-duplicates",
+  };
+  await fetch(`${SUPABASE_URL}/rest/v1/telegram_report_messages`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, updated_at: new Date().toISOString() }),
+  }).catch(() => {});
+}
+
 // Holt den Pfarrjugend-Schuldenstand und postet ihn (Bild + Caption) in einen Chat.
+// Löscht zuvor den vorherigen Report-Post im selben Chat, damit dort immer
+// nur der aktuelle Stand steht statt sich alte Stände anzusammeln.
 export async function sendReport({ token, chatId, origin }) {
   const { total, debtors } = await fetchDebtors("pfarrjugend");
   const caption = buildCaption(total, debtors);
   const imageUrl = `${origin}/api/og?scope=pfarrjugend&t=${Date.now()}`;
+
+  const previousId = await getLastMessageId(chatId);
+  if (previousId) {
+    // Best effort: alte Nachricht kann bereits gelöscht/zu alt sein — dann
+    // einfach ignorieren und trotzdem den neuen Stand posten.
+    await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: previousId }),
+    }).catch(() => {});
+  }
 
   const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
     method: "POST",
@@ -84,6 +124,11 @@ export async function sendReport({ token, chatId, origin }) {
     body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption, parse_mode: "HTML" }),
   });
   const json = await res.json().catch(() => ({}));
+
+  if (json.ok && json.result && json.result.message_id) {
+    await setLastMessageId(chatId, json.result.message_id);
+  }
+
   return { ok: !!json.ok, telegram: json, count: debtors.length };
 }
 
