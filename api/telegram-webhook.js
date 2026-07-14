@@ -28,6 +28,19 @@ export default async function handler(request) {
     return new Response("OK");
   }
 
+  // Diagnose-Log: zeigt die Chat-ID jedes eingehenden Updates (auch beim
+  // Hinzufügen zu einer Gruppe via my_chat_member), z. B. beim Ermitteln
+  // der Chat-ID für TELEGRAM_CHAT_ID. Über Vercel-Logs einsehbar.
+  const anyChat =
+    (update.message && update.message.chat) ||
+    (update.channel_post && update.channel_post.chat) ||
+    (update.my_chat_member && update.my_chat_member.chat);
+  if (anyChat) {
+    console.log(
+      `telegram update: chat_id=${anyChat.id} type=${anyChat.type} title=${anyChat.title || anyChat.username || anyChat.first_name || ""}`
+    );
+  }
+
   const msg = update.message || update.channel_post;
   const text = msg && typeof msg.text === "string" ? msg.text.trim() : "";
   const chatId = msg && msg.chat && msg.chat.id;
