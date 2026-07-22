@@ -87,6 +87,37 @@ function normalizeTitle(s) {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const temp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = temp;
+    }
+  }
+  return dp[n];
+}
+
+// Toleriert Tippfehler/Varianten beim Vergleich zweier Event-Titel: exakte
+// Übereinstimmung, einer als Teilstring des anderen (z. B. "Stüberl" in
+// "Stüberl-Runde") oder eine kleine Editierdistanz (z. B. "Fussball" /
+// "Fußball", vertippte Buchstaben).
+function titlesSimilar(a, b) {
+  const na = normalizeTitle(a), nb = normalizeTitle(b);
+  if (na === nb) return true;
+  if (na.length >= 4 && nb.length >= 4 && (na.includes(nb) || nb.includes(na))) return true;
+  const maxLen = Math.max(na.length, nb.length);
+  const threshold = Math.min(4, Math.max(1, Math.round(maxLen * 0.3)));
+  return levenshtein(na, nb) <= threshold;
+}
+
 // Liefert die "Eintragen"-Events (keine Zahlungen) vom aktuellen Abend,
 // neueste zuerst — Basis für Titel-Vorschlag und automatisches Zusammenführen.
 function currentEveningEvents() {
@@ -839,11 +870,11 @@ async function submitAdd() {
   }
   const eventName = $("#event-input").value.trim() || "Stüberl-Runde";
 
-  // An ein bestehendes Event vom selben Abend anhängen, wenn der Titel
-  // (Groß-/Kleinschreibung und Leerzeichen egal) übereinstimmt — so landen
-  // mehrere Personen mit dem gleichen Eventnamen im selben Event statt in
-  // getrennten. Sonst neues Event anlegen.
-  const match = currentEveningEvents().find((e) => normalizeTitle(e.name) === normalizeTitle(eventName));
+  // An ein bestehendes Event vom selben Abend anhängen, wenn der Titel ähnlich
+  // genug ist (Groß-/Kleinschreibung, Leerzeichen, kleine Tippfehler egal) —
+  // so landen mehrere Personen mit ähnlichem Eventnamen im selben Event statt
+  // in getrennten. Sonst neues Event anlegen.
+  const match = currentEveningEvents().find((e) => titlesSimilar(e.name, eventName));
   const finalName = match ? match.name : eventName;
 
   let eventId;
