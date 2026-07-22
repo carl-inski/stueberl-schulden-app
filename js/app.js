@@ -72,6 +72,38 @@ function balances() {
   return map;
 }
 
+// ---------- "Abend"-Gruppierung (für Event-Vorschlag/Zusammenführung) ----------
+// Ein Abend zählt intern bis 6 Uhr morgens (falls mal länger gefeiert wird) —
+// nur für diese Gruppierungslogik, nicht für die Datumsanzeige im Log.
+
+function eveningKey(date) {
+  const d = new Date(date);
+  if (d.getHours() < 6) d.setDate(d.getDate() - 1);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function normalizeTitle(s) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Liefert die "Eintragen"-Events (keine Zahlungen) vom aktuellen Abend,
+// neueste zuerst — Basis für Titel-Vorschlag und automatisches Zusammenführen.
+function currentEveningEvents() {
+  const key = eveningKey(new Date());
+  const byId = new Map();
+  for (const t of state.transactions) {
+    if (!t.event_id || !t.events || t.events.entered_by_user_id) continue;
+    if (eveningKey(t.created_at) !== key) continue;
+    const existing = byId.get(t.event_id);
+    const created = new Date(t.created_at);
+    if (!existing || created > existing.latest) {
+      byId.set(t.event_id, { id: t.event_id, name: t.events.name, latest: created });
+    }
+  }
+  return [...byId.values()].sort((a, b) => b.latest - a.latest);
+}
+
 // ---------- Beträge parsen/formatieren ----------
 
 function parseAmount(raw) {
@@ -394,6 +426,7 @@ function renderSheet() {
     const event = txs[0].events;
     const date = new Date(txs[0].created_at);
     const total = txs.reduce((sum, t) => sum + Number(t.amount), 0);
+    const uniquePersons = new Set(txs.map((t) => t.user_id)).size;
 
     const header = document.createElement("div");
     header.className = "sheet-header wrap";
@@ -404,7 +437,7 @@ function renderSheet() {
 
     const meta = document.createElement("p");
     meta.className = "sheet-meta";
-    meta.textContent = `${txs.length} ${txs.length === 1 ? "Person" : "Personen"} · ${dateFmt.format(date)} · ${timeFmt.format(date)} Uhr`;
+    meta.textContent = `${uniquePersons} ${uniquePersons === 1 ? "Person" : "Personen"} · ${dateFmt.format(date)} · ${timeFmt.format(date)} Uhr`;
     content.appendChild(meta);
 
     const balance = document.createElement("p");
@@ -670,25 +703,41 @@ function renderLog() {
         }));
       }
     } else if (g.event) {
-      // Event: Kachel mit Kopfzeile und einer Zeile pro Person
-      const total = g.items.reduce((sum, t) => sum + Number(t.amount), 0);
-      tile.appendChild(logRow({
-        iconRef: "#i-calendar",
-        iconClass: "event",
-        title: g.event.name,
-        meta: `${g.items.length} ${g.items.length === 1 ? "Person" : "Personen"} · ${timeFmt.format(g.date)} Uhr`,
-        amount: total,
-        header: true,
-        onClick: () => openSheet("event", g.items[0].event_id),
-      }));
-      for (const t of g.items) {
+      const uniquePersons = new Set(g.items.map((t) => t.user_id));
+      if (uniquePersons.size === 1) {
+        // Nur eine Person an diesem Event beteiligt: keine eigene Kopfzeile —
+        // stattdessen direkt als normale Zeile(n) mit dem Event-Namen als Titel.
+        for (const t of g.items) {
+          tile.appendChild(logRow({
+            iconRef: "#i-calendar",
+            iconClass: "event",
+            title: g.event.name,
+            meta: `${userName(t.user_id)} · ${timeFmt.format(new Date(t.created_at))} Uhr`,
+            amount: Number(t.amount),
+            onClick: () => openSheet("event", t.event_id),
+          }));
+        }
+      } else {
+        // Mehrere Personen: Kachel mit Kopfzeile und einer Zeile pro Person
+        const total = g.items.reduce((sum, t) => sum + Number(t.amount), 0);
         tile.appendChild(logRow({
-          iconRef: "#i-person",
-          iconClass: "person",
-          title: userName(t.user_id),
-          meta: `${timeFmt.format(new Date(t.created_at))} Uhr`,
-          amount: Number(t.amount),
+          iconRef: "#i-calendar",
+          iconClass: "event",
+          title: g.event.name,
+          meta: `${uniquePersons.size} Personen · ${timeFmt.format(g.date)} Uhr`,
+          amount: total,
+          header: true,
+          onClick: () => openSheet("event", g.items[0].event_id),
         }));
+        for (const t of g.items) {
+          tile.appendChild(logRow({
+            iconRef: "#i-person",
+            iconClass: "person",
+            title: userName(t.user_id),
+            meta: `${timeFmt.format(new Date(t.created_at))} Uhr`,
+            amount: Number(t.amount),
+          }));
+        }
       }
     } else {
       // Einzelner Eintrag ohne Event (ältere Daten): ebenfalls eigene Kachel
@@ -742,6 +791,7 @@ function switchView(view, animate = true) {
   if (view === "entry") {
     // Erst nach dem Einblenden haben die Buttons eine messbare Breite
     moveIndicator($("#mode-seg"), $("#mode-seg .seg-btn.active"));
+    if (state.mode === "add") fillEventSuggestion();
   }
 }
 
@@ -759,6 +809,17 @@ function switchMode(mode) {
   submit.textContent = mode === "pay" ? "Schulden begleichen" : "Eintragen";
   submit.classList.toggle("pay-mode", mode === "pay");
   if (mode === "pay") updatePaypalLink();
+  if (mode === "add") fillEventSuggestion();
+}
+
+// Schlägt beim Öffnen von "Eintragen" automatisch den Titel des laufenden
+// Abends vor (falls schon jemand etwas eingetragen hat), sofern das Feld
+// noch leer ist — so landen mehrere Personen leicht im selben Event.
+function fillEventSuggestion() {
+  const input = $("#event-input");
+  if (!input || input.value.trim()) return;
+  const evening = currentEveningEvents();
+  if (evening[0]) input.value = evening[0].name;
 }
 
 // ---------- Aktionen ----------
@@ -778,18 +839,31 @@ async function submitAdd() {
   }
   const eventName = $("#event-input").value.trim() || "Stüberl-Runde";
 
-  const { data: event, error: eventError } = await db
-    .from("events")
-    .insert({ name: eventName })
-    .select()
-    .single();
-  if (eventError) throw eventError;
+  // An ein bestehendes Event vom selben Abend anhängen, wenn der Titel
+  // (Groß-/Kleinschreibung und Leerzeichen egal) übereinstimmt — so landen
+  // mehrere Personen mit dem gleichen Eventnamen im selben Event statt in
+  // getrennten. Sonst neues Event anlegen.
+  const match = currentEveningEvents().find((e) => normalizeTitle(e.name) === normalizeTitle(eventName));
+  const finalName = match ? match.name : eventName;
+
+  let eventId;
+  if (match) {
+    eventId = match.id;
+  } else {
+    const { data: event, error: eventError } = await db
+      .from("events")
+      .insert({ name: eventName })
+      .select()
+      .single();
+    if (eventError) throw eventError;
+    eventId = event.id;
+  }
 
   const rows = [...state.selection.entries()].map(([userId, amount]) => ({
     user_id: userId,
     amount,
-    description: eventName,
-    event_id: event.id,
+    description: finalName,
+    event_id: eventId,
   }));
   const { error } = await db.from("transactions").insert(rows);
   if (error) throw error;
@@ -798,7 +872,8 @@ async function submitAdd() {
   $("#event-input").value = "";
   state.selection = new Map();
   await loadData();
-  toast(`„${eventName}“ – ${count} ${count === 1 ? "Eintrag" : "Einträge"} gespeichert`);
+  fillEventSuggestion();
+  toast(`„${finalName}“ – ${count} ${count === 1 ? "Eintrag" : "Einträge"} gespeichert`);
 }
 
 async function submitPay() {
