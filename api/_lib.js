@@ -102,10 +102,14 @@ async function setLastMessageId(chatId, messageId) {
 // Holt den Pfarrjugend-Schuldenstand und postet ihn (Bild + Caption) in einen Chat.
 // Löscht zuvor den vorherigen Report-Post im selben Chat, damit dort immer
 // nur der aktuelle Stand steht statt sich alte Stände anzusammeln.
-export async function sendReport({ token, chatId, origin }) {
+export async function sendReport({ token, chatId }) {
   const { total, debtors } = await fetchDebtors("pfarrjugend");
   const caption = buildCaption(total, debtors);
-  const imageUrl = `${origin}/api/og?scope=pfarrjugend&t=${Date.now()}`;
+  // Bewusst die feste öffentliche APP_URL statt der Origin der eingehenden
+  // Anfrage: beim Cron ist das die deployment-spezifische *.vercel.app-URL,
+  // die durch Vercel Authentication geschützt ist. Telegram folgte dort der
+  // SSO-Weiterleitung und postete das Vercel-Login-Vorschaubild statt unseres.
+  const imageUrl = `${APP_URL}/api/og?scope=pfarrjugend&t=${Date.now()}`;
 
   const previousId = await getLastMessageId(chatId);
   if (previousId) {

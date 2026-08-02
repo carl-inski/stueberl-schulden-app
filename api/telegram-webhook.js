@@ -48,11 +48,10 @@ export default async function handler(request) {
 
   // "/schulden@botname args" → "/schulden"
   const cmd = text.split(/\s+/)[0].split("@")[0].toLowerCase();
-  const origin = new URL(request.url).origin;
 
   try {
     if (REPORT_COMMANDS.includes(cmd)) {
-      await sendReport({ token, chatId, origin });
+      await sendReport({ token, chatId });
     } else if (cmd === "/start" || cmd === "/help") {
       await sendMessage({ token, chatId, text: HELP_TEXT });
     }

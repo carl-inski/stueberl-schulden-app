@@ -27,9 +27,8 @@ export default async function handler(request) {
     );
   }
 
-  const origin = new URL(request.url).origin;
   try {
-    const result = await sendReport({ token, chatId, origin });
+    const result = await sendReport({ token, chatId });
     return new Response(JSON.stringify({ sent: result.ok, count: result.count, telegram: result.ok ? undefined : result.telegram }), {
       status: result.ok ? 200 : 502,
       headers: { "Content-Type": "application/json" },
